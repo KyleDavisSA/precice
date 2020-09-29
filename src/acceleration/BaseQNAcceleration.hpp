@@ -12,6 +12,7 @@
 #include "acceleration/impl/QRFactorization.hpp"
 #include "acceleration/impl/SharedPointer.hpp"
 #include "logging/Logger.hpp"
+#include "cplscheme/BaseCouplingScheme.hpp"
 
 /* ****************************************************************************
  *
@@ -140,6 +141,19 @@ public:
     */
   virtual int getLSSystemCols() const;
 
+  double someConvergenceMeasure = 0.0;
+
+  double lastChange = 0;   // 0 if it last increased limit, 1 if it decreased limit
+  double deletedCols = 0;   // 0 if it last increased limit, 1 if it decreased limit
+  double upperLim = 0;
+  double lowerLim = 0;
+  int deletedColsConstantConverging = 0;   // 0 if it last increased limit, 1 if it decreased limit
+  int iterationsCheckConstantConverging = 0;
+
+  void newConvMeasure(double newConvMeasure);
+
+  void resetIterationsToChange(int someInt);
+
 protected:
   logging::Logger _log{"acceleration::BaseQNAcceleration"};
 
@@ -200,8 +214,12 @@ protected:
   /// @brief Stores x tilde deltas, where x tilde are values computed by solvers.
   Eigen::MatrixXd _matrixW;
 
+  Eigen::MatrixXd _testingValues;
+
   /// @brief Stores the current QR decomposition ov _matrixV, can be updated via deletion/insertion of columns
   impl::QRFactorization _qrV;
+  /// @brief Stores the current QR decomposition ov _matrixV, can be updated via deletion/insertion of columns
+  impl::QRFactorization _qrVSaved;
 
   /** @brief filter method that is used to maintain good conditioning of the least-squares system
     *        Either of two types: QR1FILTER or QR2Filter
@@ -256,6 +274,12 @@ protected:
   /// Applies the filter method for the least-squares system, defined in the configuration
   virtual void applyFilter();
 
+  /// Changes QN parameters for autotuning
+  virtual void parameterTuning();
+
+  /// Changes QN parameters for autotuning
+  virtual void storeResults(double limit, Eigen::VectorXd newValues);
+
   /// Computes underrelaxation for the secondary data
   virtual void computeUnderrelaxationSecondaryData(DataMap &cplData) = 0;
 
@@ -286,13 +310,25 @@ private:
    */
   Eigen::MatrixXd _matrixVBackup;
   Eigen::MatrixXd _matrixWBackup;
+  Eigen::MatrixXd _matrixPseudoV;
+  Eigen::MatrixXd _matrixPseudoW;
+  Eigen::MatrixXd _matrixPseudoVSmall;
+  Eigen::MatrixXd _matrixPseudoWSmall;
+  std::deque<int> _matrixColsSmall;
+  std::deque<int> _matrixPseudoCols;
   std::deque<int> _matrixColsBackup;
+
+  Eigen::VectorXd _oldValuesTest;
+
+  double _isConvOld;
 
   /// Number of filtered out columns in this time window
   int _nbDelCols = 0;
 
   /// Number of dropped columns in this time window (old time window out of scope)
   int _nbDropCols = 0;
+
+  int iterationsToChange = 0;
 };
 } // namespace acceleration
 } // namespace precice

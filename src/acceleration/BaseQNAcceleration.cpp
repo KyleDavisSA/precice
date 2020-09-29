@@ -15,6 +15,8 @@
 #include "utils/Helpers.hpp"
 #include "utils/MasterSlave.hpp"
 #include "utils/assertion.hpp"
+#include "cplscheme/BaseCouplingScheme.hpp"
+#include "cplscheme/CouplingScheme.hpp"
 
 namespace precice {
 namespace io {
@@ -176,6 +178,20 @@ void BaseQNAcceleration::initialize(
   }
 
   _preconditioner->initialize(subVectorSizes);
+
+  someConvergenceMeasure = _singularityLimit;
+  if (someConvergenceMeasure > 0.8){
+    if (_filter == Acceleration::QR1FILTER){
+      _singularityLimit = 0.000001;
+      upperLim = 0.002;
+      lowerLim = 0.0000002;
+    }
+    if (_filter == Acceleration::QR2FILTER){
+      _singularityLimit = 0.001;
+      upperLim = 0.2;
+      lowerLim = 0.001;
+    }
+  }
 }
 
 /** ---------------------------------------------------------------------------------------------
@@ -229,12 +245,16 @@ void BaseQNAcceleration::updateDifferenceMatrices(
                                                                                "Maybe you always write the same (or only incremented) data or you call advance without "
                                                                                "providing  new data first.");
 
+
       bool columnLimitReached = getLSSystemCols() == _maxIterationsUsed;
       bool overdetermined     = getLSSystemCols() <= getLSSystemRows();
       if (not columnLimitReached && overdetermined) {
 
         utils::appendFront(_matrixV, deltaR);
         utils::appendFront(_matrixW, deltaXTilde);
+
+        utils::appendFront(_matrixPseudoVSmall, deltaR);
+        utils::appendFront(_matrixPseudoWSmall, deltaXTilde);
 
         // insert column deltaR = _residuals - _oldResiduals at pos. 0 (front) into the
         // QR decomposition and update decomposition
@@ -244,9 +264,13 @@ void BaseQNAcceleration::updateDifferenceMatrices(
         _qrV.pushFront(deltaR);
 
         _matrixCols.front()++;
+        _matrixColsSmall.front()++;
       } else {
         utils::shiftSetFirst(_matrixV, deltaR);
         utils::shiftSetFirst(_matrixW, deltaXTilde);
+
+        utils::appendFront(_matrixPseudoVSmall, deltaR);
+        utils::appendFront(_matrixPseudoWSmall, deltaXTilde);
 
         // inserts column deltaR at pos. 0 to the QR decomposition and deletes the last column
         // the QR decomposition of V is updated
@@ -256,8 +280,13 @@ void BaseQNAcceleration::updateDifferenceMatrices(
 
         _matrixCols.front()++;
         _matrixCols.back()--;
+        _matrixColsSmall.front()++;
+        _matrixColsSmall.back()--;
         if (_matrixCols.back() == 0) {
           _matrixCols.pop_back();
+        }
+        if (_matrixColsSmall.back() == 0) {
+          _matrixColsSmall.pop_back();
         }
         _nbDropCols++;
       }
@@ -302,6 +331,9 @@ void BaseQNAcceleration::performAcceleration(
 
   // scale data values (and secondary data values)
   concatenateCouplingData(cplData);
+  //individualNormCouplingData(cplData);
+  double dataNorm = utils::MasterSlave::l2norm(_oldValues);
+  PRECICE_INFO("Norm of data: " << dataNorm);
 
   /** update the difference matrices V,W  includes:
    * scaling of values
@@ -310,10 +342,12 @@ void BaseQNAcceleration::performAcceleration(
    */
   updateDifferenceMatrices(cplData);
 
-  if (_firstIteration && (_firstTimeStep || _forceInitialRelaxation)) {
+  if (_firstIteration && (_firstTimeStep || _forceInitialRelaxation) ) {
+
     PRECICE_DEBUG("   Performing underrelaxation");
     _oldXTilde    = _values;    // Store x tilde
     _oldResiduals = _residuals; // Store current residual
+    
 
     // Perform constant relaxation
     // with residual: x_new = x_old + omega * res
@@ -342,6 +376,39 @@ void BaseQNAcceleration::performAcceleration(
       _preconditioner->revert(_matrixV);
       _resetLS = true; // need to recompute _Wtil, Q, R (only for IMVJ efficient update)
     }
+    //if (!_firstTimeStep)
+    //  _singularityLimit = 0.001;
+
+    Eigen::VectorXd xUpdate = Eigen::VectorXd::Zero(_residuals.size());
+
+      _matrixPseudoV = _matrixV;
+      _matrixPseudoW = _matrixW;
+      _matrixPseudoCols =_matrixCols;
+      _qrVSaved = _qrV;
+
+    Eigen::VectorXd newValues;
+    //_singularityLimit = 0.0001;
+
+    Eigen::VectorXd oldXUpdate = Eigen::VectorXd::Zero(_residuals.size());
+   
+    for (int i = 0; i < 1; i++){
+
+      PRECICE_INFO("Number of matrix Columns: " <<  _matrixV.cols());
+      lastChange =  _matrixV.cols();
+      //PRECICE_INFO("Norm of matrix V: " << utils::MasterSlave::l2norm(_matrixV));
+      PRECICE_INFO("Norm of new Values: " << utils::MasterSlave::l2norm(_values));
+      PRECICE_INFO("Norm of old Values: " << utils::MasterSlave::l2norm(_oldValues));
+      PRECICE_INFO("Norm difference: " << utils::MasterSlave::l2norm(_values) - utils::MasterSlave::l2norm(_oldValues));
+
+      //if ((utils::MasterSlave::l2norm(_values) / utils::MasterSlave::l2norm(_oldValues)) > 100){
+      //  _singularityLimit *= 10;
+      //}
+
+      //if (iterationsCheckConstantConverging == 54){
+      //  _singularityLimit = 0.99999;
+      //}
+
+     // _singularityLimit *= 2;
 
     /**
      *  === update and apply preconditioner ===
@@ -349,6 +416,20 @@ void BaseQNAcceleration::performAcceleration(
      * The preconditioner is only applied to the matrix V and the columns that are inserted into the
      * QR-decomposition of V.
      */
+
+    // Reset the matrices V, W and number of columns
+    /*
+    _matrixV = _matrixPseudoV;
+    _matrixW = _matrixPseudoW;
+    _matrixCols = _matrixPseudoCols;
+    PRECICE_INFO("Number of matrix Columns: " << _matrixCols);
+    //_qrV = _qrVSaved;
+
+    _preconditioner->apply(_matrixV);
+    _qrV.reset(_matrixV, getLSSystemRows());
+    _preconditioner->revert(_matrixV);
+    _resetLS = true; // need to recompute _Wtil, Q, R (only for IMVJ efficient update)
+    */
 
     _preconditioner->update(false, _values, _residuals);
     // apply scaling to V, V' := P * V (only needed to reset the QR-dec of V)
@@ -367,23 +448,278 @@ void BaseQNAcceleration::performAcceleration(
     }
 
     // apply the configured filter to the LS system
+    /*
+        Here I can call applyFilter multiple times with different settings to get 
+        different answers for "_values". This matrix is saved and each column can
+        be compared to the final answer
+    */ 
+   
     applyFilter();
-
+    
+    PRECICE_INFO("Number of columns:" << _matrixV.cols() << " with filter limit: " << _singularityLimit);
+    deletedCols += (lastChange - _matrixV.cols());
+    deletedColsConstantConverging += (lastChange - _matrixV.cols());
+    PRECICE_INFO("Deleted Columns in last 5 iterations: " << deletedCols);
     // revert scaling of V, in computeQNUpdate all data objects are unscaled.
     _preconditioner->revert(_matrixV);
-
     /**
      * compute quasi-Newton update
      * PRECONDITION: All objects are unscaled, except the matrices within the QR-dec of V.
      *               Thus, the pseudo inverse needs to be reverted before using it.
      */
-    Eigen::VectorXd xUpdate = Eigen::VectorXd::Zero(_residuals.size());
+
+    xUpdate = Eigen::VectorXd::Zero(_residuals.size());
     computeQNUpdate(cplData, xUpdate);
 
-    /**
-     * apply quasiNewton update
-     */
+    //_singularityLimit *= 10;
+
+    
+    if (i > 0){
+      if (utils::MasterSlave::l2norm(xUpdate) > utils::MasterSlave::l2norm(oldXUpdate)){
+        xUpdate = oldXUpdate;
+      }
+    }
+
+    oldXUpdate = xUpdate;
+
+    }
+
     _values = _oldValues + xUpdate + _residuals; // = x^k + delta_x + r^k - q^k
+    newValues = _oldValues + xUpdate + _residuals;
+    utils::appendFront(_testingValues, newValues);
+    
+    storeResults(_singularityLimit, newValues);
+    double _isConvergenceTest;
+    double normFirst;
+
+    PRECICE_INFO("Output of getNorm in convergence writer in QN in performAcceleration: " << someConvergenceMeasure);
+
+
+    if (iterationsToChange > 0) {
+      double _normDiffTest      = utils::MasterSlave::l2norm(_values - _oldValues);
+      double _normTest          = utils::MasterSlave::l2norm(_values);
+      _isConvergenceTest = _normDiffTest/_normTest;
+      PRECICE_INFO("Testing convergence: " << _isConvergenceTest);
+      //if (iterationsToChange == 1){
+      //  _isConvOld = _isConvergenceTest;
+      //} 
+    }
+    
+
+   // This indicate when the `old` convergence value is saved to be compared to the `new` convergence value later.
+    if (iterationsToChange == 1){
+      _isConvOld = _isConvergenceTest;
+      //_oldValuesTest
+    }
+
+    
+    /*
+      This compares the convergence rate 5 iterations later. If the convergence has not reduced by more than
+      a factor of 10, the filter limit is adjusted depending on the number of columns left. The minimum
+      number of columns needed and the maximum is a tunable parameter. Need to find a value that 
+      is good for lots of scenarios.
+    */
+
+    
+
+    /*
+      Decision Tree Fitler Variant 1:
+        Only changes filter if # deleted columns is =1 or =5
+        More suited to larger changes in filter limit
+    */
+    /*
+    double singularityChangeFactor = 10.0;
+    if (iterationsToChange == 5 && someConvergenceMeasure > 0.8){
+      PRECICE_INFO("Old convergence value: " << _isConvOld);
+      PRECICE_INFO("New convergence value: " << _isConvergenceTest);
+      if (_isConvergenceTest > 0.2*(_isConvOld)){
+        if (_matrixV.cols() > 15 && deletedCols < 2){
+          _singularityLimit *= singularityChangeFactor;
+          PRECICE_INFO("Enough Columns, less than one deleted. Increasing filter limit.");
+          //RECICE_INFO("New filter limit: " << _singularityLimit);
+          
+        }
+        if (_matrixV.cols() > 15 && deletedCols > 4){
+          _singularityLimit /= singularityChangeFactor;
+          PRECICE_INFO("Enough Columns, more than four deleted. Decreasing filter limit.");
+          //RECICE_INFO("New filter limit: " << _singularityLimit);
+          
+        }
+        if (_matrixV.cols() < 10  && deletedCols > 2){
+          _singularityLimit /= singularityChangeFactor;
+        
+          PRECICE_INFO("Less than 10 Columns, and deleting more than 2. Decreasing filter limit.");
+        }
+        if (_matrixV.cols() < 10  && deletedCols == 0){
+          _singularityLimit *= singularityChangeFactor;
+          
+          PRECICE_INFO("Less than 10 Columns, none deleted. Increasing filter limit.");
+        }
+        //if (_singularityLimit > upperLim){
+        //  _singularityLimit /= singularityChangeFactor;
+        //  PRECICE_INFO("Filter limit too high. Reducing by a factor of 10. ");
+        //}
+        //if (_singularityLimit < lowerLim){
+        //  _singularityLimit *= singularityChangeFactor;
+        //  PRECICE_INFO("Filter limit too low. Increasing by a factor of 10. ");
+        //}
+      } else {
+        if (iterationsCheckConstantConverging > 10){
+          if (_matrixV.cols() > 15 && deletedColsConstantConverging < 2){
+            _singularityLimit *= singularityChangeFactor;
+            PRECICE_INFO("Converging over 10 iterations and enough columns. Deleted 1 column only. Increasing filter limit.");
+          }
+          if (_matrixV.cols() > 15 && deletedColsConstantConverging > 9){
+            _singularityLimit /= singularityChangeFactor;
+            PRECICE_INFO("Converging over 10 iterations and enough columns. Deleted lots of columns. Decreasing filter limit.");
+          }
+          if (_matrixV.cols() < 10 && deletedColsConstantConverging > 3){
+            _singularityLimit /= singularityChangeFactor;
+            PRECICE_INFO("Converging over 10 iterations but few columns. Deleted a few columns. Decreasing filter limit.");
+          }
+          //if (_singularityLimit > upperLim){
+          //  _singularityLimit /= singularityChangeFactor;
+          //  PRECICE_INFO("Filter limit too high. Reducing by a factor of 10. ");
+          //}
+          //if (_singularityLimit < lowerLim){
+          //  _singularityLimit *= singularityChangeFactor;
+          //  PRECICE_INFO("Filter limit too low. Increasing by a factor of 10. ");
+          //}
+          //iterationsCheckConstantConverging = 0;
+          deletedColsConstantConverging = 0;
+        }
+      }
+      //if (_matrixV.cols() > 15 && deletedCols > 4){
+      //    _singularityLimit /= singularityChangeFactor;
+      //    PRECICE_INFO("Enough Columns, can filter more. Too many deleted");
+          //RECICE_INFO("New filter limit: " << _singularityLimit);
+      //  }
+      if (_singularityLimit > upperLim){
+          _singularityLimit /= singularityChangeFactor;
+          PRECICE_INFO("Filter limit too high. Reducing by a factor of " << singularityChangeFactor);
+        }
+        if (_singularityLimit < lowerLim){
+            _singularityLimit *= singularityChangeFactor;
+            PRECICE_INFO("Filter limit too low. Increasing by a factor of " << singularityChangeFactor);
+          }
+      iterationsToChange = 0;
+      _isConvOld = _isConvergenceTest;
+      deletedCols = 0;
+    }
+    PRECICE_INFO("New filter limit: " << _singularityLimit);
+
+    */
+
+   /*
+      Decision Tree Fitler Variant 2:
+        Decreases filter if 4 or above
+        Increases filter if 2 or below
+        More suited for small increments such as *2, not *10
+    
+    */
+    double singularityChangeFactor = 2.0;
+    if (iterationsToChange == 5 && someConvergenceMeasure > 0.8){
+      PRECICE_INFO("Old convergence value: " << _isConvOld);
+      PRECICE_INFO("New convergence value: " << _isConvergenceTest);
+      if (_isConvergenceTest > 0.2*(_isConvOld)){
+        if (_matrixV.cols() > 15 && deletedCols < 3){
+          _singularityLimit *= singularityChangeFactor;
+          PRECICE_INFO("Enough Columns, less than one deleted. Increasing filter limit.");
+          //RECICE_INFO("New filter limit: " << _singularityLimit);
+          
+        }
+        if (_matrixV.cols() > 15 && deletedCols > 3){
+          _singularityLimit /= singularityChangeFactor;
+          PRECICE_INFO("Enough Columns, more than four deleted. Decreasing filter limit.");
+          //RECICE_INFO("New filter limit: " << _singularityLimit);
+          
+        }
+        if (_matrixV.cols() < 10  && deletedCols > 2){
+          _singularityLimit /= singularityChangeFactor;
+        
+          PRECICE_INFO("Less than 10 Columns, and deleting more than 2. Decreasing filter limit.");
+        }
+        if (_matrixV.cols() < 10  && deletedCols == 0){
+          _singularityLimit *= singularityChangeFactor;
+          
+          PRECICE_INFO("Less than 10 Columns, none deleted. Increasing filter limit.");
+        }
+        //if (_singularityLimit > upperLim){
+        //  _singularityLimit /= singularityChangeFactor;
+        //  PRECICE_INFO("Filter limit too high. Reducing by a factor of 10. ");
+        //}
+        //if (_singularityLimit < lowerLim){
+        //  _singularityLimit *= singularityChangeFactor;
+        //  PRECICE_INFO("Filter limit too low. Increasing by a factor of 10. ");
+        //}
+      } else {
+        if (iterationsCheckConstantConverging > 10){
+          if (_matrixV.cols() > 15 && deletedColsConstantConverging < 2){
+            _singularityLimit *= singularityChangeFactor;
+            PRECICE_INFO("Converging over 10 iterations and enough columns. Deleted 1 column only. Increasing filter limit.");
+          }
+          if (_matrixV.cols() > 15 && deletedColsConstantConverging > 8){
+            _singularityLimit /= singularityChangeFactor;
+            PRECICE_INFO("Converging over 10 iterations and enough columns. Deleted lots of columns. Decreasing filter limit.");
+          }
+          if (_matrixV.cols() < 10 && deletedColsConstantConverging > 3){
+            _singularityLimit /= singularityChangeFactor;
+            PRECICE_INFO("Converging over 10 iterations but few columns. Deleted a few columns. Decreasing filter limit.");
+          }
+          //if (_singularityLimit > upperLim){
+          //  _singularityLimit /= singularityChangeFactor;
+          //  PRECICE_INFO("Filter limit too high. Reducing by a factor of 10. ");
+          //}
+          //if (_singularityLimit < lowerLim){
+          //  _singularityLimit *= singularityChangeFactor;
+          //  PRECICE_INFO("Filter limit too low. Increasing by a factor of 10. ");
+          //}
+          //iterationsCheckConstantConverging = 0;
+          deletedColsConstantConverging = 0;
+        }
+      }
+      //if (_matrixV.cols() > 15 && deletedCols > 4){
+      //    _singularityLimit /= singularityChangeFactor;
+      //    PRECICE_INFO("Enough Columns, can filter more. Too many deleted");
+          //RECICE_INFO("New filter limit: " << _singularityLimit);
+      //  }
+      if (_singularityLimit > upperLim){
+          _singularityLimit /= singularityChangeFactor;
+          PRECICE_INFO("Filter limit too high. Reducing by a factor of " << singularityChangeFactor);
+        }
+        if (_singularityLimit < lowerLim){
+            _singularityLimit *= singularityChangeFactor;
+            PRECICE_INFO("Filter limit too low. Increasing by a factor of " << singularityChangeFactor);
+          }
+      iterationsToChange = 0;
+      _isConvOld = _isConvergenceTest;
+      deletedCols = 0;
+    }
+    PRECICE_INFO("New filter limit: " << _singularityLimit);
+
+  
+        
+  ///PRECICE_INFO("iterationsToChange: " << iterationsToChange);
+
+    Eigen::VectorXd convTest;
+    convTest.resize(_testingValues.rows(), 1);
+    /*if (iterationsToChange == 45) {
+      for (int i = 0; i < _testingValues.cols(); i++){
+        for (int j = 0; j < _testingValues.rows(); j++) {
+          convTest(j,0) = _testingValues(j,i);
+        }
+
+          double _normDiffTest      = utils::MasterSlave::l2norm(convTest - _oldValuesTest);
+          double _normTest          = utils::MasterSlave::l2norm(convTest);
+          double _isConvergenceTest = _normDiffTest/_normTest;
+          PRECICE_INFO("Testing convergence: " << _isConvergenceTest);
+        
+      }
+    }
+    */
+    
+    //if (iterationsToChange == 65)
+    //_oldValuesTest = _values;
 
     // pending deletion: delete old V, W matrices if timestepsReused = 0
     // those were only needed for the first iteration (instead of underrelax.)
@@ -419,6 +755,13 @@ void BaseQNAcceleration::performAcceleration(
     }
   }
 
+  //if (iterationsCheckConstantConverging == 54){
+  //      _singularityLimit = someConvergenceMeasure;
+  //}
+
+  iterationsToChange++;
+  iterationsCheckConstantConverging++;
+
   splitCouplingData(cplData);
 
   /*
@@ -438,9 +781,16 @@ void BaseQNAcceleration::performAcceleration(
   _firstIteration = false;
 }
 
+void BaseQNAcceleration::newConvMeasure(double newConvMeasure)
+{
+  someConvergenceMeasure = newConvMeasure;
+  PRECICE_INFO("Output of getNorm in convergence writer in QN: " << someConvergenceMeasure);
+}
+
 void BaseQNAcceleration::applyFilter()
 {
   PRECICE_TRACE(_filter);
+  int remaining;
 
   if (_filter == Acceleration::NOFILTER) {
     // do nothing
@@ -449,15 +799,56 @@ void BaseQNAcceleration::applyFilter()
     std::vector<int> delIndices(0);
     _qrV.applyFilter(_singularityLimit, delIndices, _matrixV);
     // start with largest index (as V,W matrices are shrinked and shifted
+    
+    PRECICE_INFO("Columns in applyFilter: " << _qrV.cols());
+    remaining = _qrV.cols()/2;
+    //if (_qrV.cols()/2 < 10){
+    //  remaining = 10;
+   // }
 
-    for (int i = delIndices.size() - 1; i >= 0; i--) {
-
-      removeMatrixColumn(delIndices[i]);
-
-      PRECICE_DEBUG(" Filter: removing column with index " << delIndices[i] << " in iteration " << its << " of time step: " << tSteps);
-    }
+    //if (_qrV.cols() > 10){
+      
+      for (int i = delIndices.size() - 1; i >= 0; i--) {
+        //if (remaining < 10)
+        //  break;
+        PRECICE_INFO(" Filter: removing column with index " << delIndices[i] << " in iteration " << its << " of time step: " << tSteps);
+        removeMatrixColumn(delIndices[i]);
+        
+        //remaining--;
+      
+  }
     PRECICE_ASSERT(_matrixV.cols() == _qrV.cols(), _matrixV.cols(), _qrV.cols());
   }
+}
+
+void BaseQNAcceleration::parameterTuning()
+{
+  PRECICE_TRACE(_filter);
+
+  if (_filter == Acceleration::NOFILTER) {
+    // do nothing
+  } else {
+   // _singularityLimit /= 10;
+  }
+  //if (_singularityLimit < 0.00000001){
+  //  _singularityLimit = 0.00000001;
+  //}
+
+  //PRECICE_INFO("New filter limit: " << _singularityLimit);
+}
+
+void BaseQNAcceleration::resetIterationsToChange(int someInt)
+{
+  iterationsToChange = 0;
+}
+
+void BaseQNAcceleration::storeResults(double limit, Eigen::VectorXd newValues)
+{
+  PRECICE_INFO("New values for storing results with limit: " << limit);
+  for (int i = 0; i < 10; i++){
+    PRECICE_INFO(" " << newValues[i]);
+  }
+  
 }
 
 void BaseQNAcceleration::concatenateCouplingData(
@@ -470,6 +861,8 @@ void BaseQNAcceleration::concatenateCouplingData(
     int         size      = cplData[id]->values->size();
     auto &      values    = *cplData[id]->values;
     const auto &oldValues = cplData[id]->oldValues.col(0);
+    double inputNorm = utils::MasterSlave::l2norm(values);
+    PRECICE_INFO("Input Norm of data ID: " << id << " - with norm: " << inputNorm);
     for (int i = 0; i < size; i++) {
       _values(i + offset)    = values(i);
       _oldValues(i + offset) = oldValues(i);
@@ -477,6 +870,25 @@ void BaseQNAcceleration::concatenateCouplingData(
     offset += size;
   }
 }
+
+/*
+void BaseQNAcceleration::individualNormCouplingData(
+    DataMap &cplData)
+{
+  PRECICE_TRACE();
+
+  int offset = 0;
+  for (int id : _dataIDs) {
+    int         size      = cplData[id]->values->size();
+    auto &      values    = *cplData[id]->values;
+    const auto &oldValues = cplData[id]->oldValues.col(0);
+    double inputNorm = utils::MasterSlave::l2norm(values);
+    PRECICE_INFO("Input Norm of data ID: " << id << " - with norm: " << inputNorm);
+  }
+}
+*/
+
+
 
 void BaseQNAcceleration::splitCouplingData(
     DataMap &cplData)
@@ -598,11 +1010,13 @@ void BaseQNAcceleration::iterationsConverged(
 void BaseQNAcceleration::removeMatrixColumn(
     int columnIndex)
 {
+  PRECICE_INFO("RemoveMat columns: " << _matrixV.cols() << " - and columnIndex: " << columnIndex);
   PRECICE_TRACE(columnIndex, _matrixV.cols());
 
   _nbDelCols++;
 
   PRECICE_ASSERT(_matrixV.cols() > 1);
+  
   utils::removeColumnFromMatrix(_matrixV, columnIndex);
   utils::removeColumnFromMatrix(_matrixW, columnIndex);
 
