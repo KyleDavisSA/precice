@@ -177,6 +177,24 @@ public:
 
     // type specific update functionality
     _update_(timestepComplete, oldValues, res);
+
+    Eigen::VectorXd normWeights;
+    normWeights.resize(_weights.size());
+    for (int i = 0; i < _weights.size(); i++){
+      normWeights[i] = _weights[i];
+    }
+
+    PRECICE_INFO("Norm of Weights: " << utils::MasterSlave::l2norm(normWeights));
+    //PRECICE_INFO("Norm of Weights: " << _weights[1622]);
+    
+  }
+
+  void unFreeze()
+  {
+        _freezed = false;
+        _nbNonConstTimesteps = 0;
+        _maxNonConstTimesteps = 2;
+
   }
 
   /// returns true if a QR decomposition from scratch is necessary

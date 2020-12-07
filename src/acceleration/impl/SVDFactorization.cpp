@@ -60,15 +60,81 @@ void SVDFactorization::revertPreconditioner()
 }
 */
 
-void SVDFactorization::reset()
+void SVDFactorization::reset(Eigen::VectorXd &resetCplData)
 {
-  _psi.resize(0, 0);
-  _phi.resize(0, 0);
-  _sigma.resize(0);
-  _preconditionerApplied = false;
-  _initialSVD            = false;
-  _applyFilterQR         = false;
-  _epsQR2                = 1e-3;
+  if (_initialSVD){
+    
+    PRECICE_INFO("cplData norm: " << utils::MasterSlave::l2norm(cplDataNorm));
+    PRECICE_INFO("resetCplData norm: " << utils::MasterSlave::l2norm(resetCplData));
+
+    //double vectorDifference = utils::MasterSlave::l2norm(cplDataNorm - resetCplData);
+    double vectorDifference = utils::MasterSlave::l2norm(cplDataNorm)/utils::MasterSlave::l2norm(resetCplData);
+
+    int checkDataValidity = 1;
+
+    /*
+      Scale the input data sets between -1 and 1. Subtract the two. If they differ too much, then the
+      system is different and needs to be reset.
+
+      if || resetCplData ||_2 < || resetCplData - cplDataNorm || for scaled data
+
+      To scale 
+
+      ( ( (value - min)/(max - min) ) * 2 ) - 1
+
+    */
+    if (checkDataValidity){
+      double resetMin = resetCplData[0];
+      double resetMax = resetCplData[0];
+      double cplMin = cplDataNorm[0];
+      double cplMax = cplDataNorm[0];
+
+      for (int i = 0; i < resetCplData.size(); i++){
+        if (resetCplData[i] < resetMin)
+         resetMin = resetCplData[i];
+        if (resetCplData[i] > resetMax)
+          resetMax = resetCplData[i];
+        if (cplDataNorm[i] < cplMin)
+          cplMin = cplDataNorm[i];
+        if (cplDataNorm[i] > cplMax)
+          cplMax = cplDataNorm[i];
+      }
+
+      Eigen::VectorXd resetCplDataRescaled;
+      Eigen::VectorXd cplDataRescaled;
+
+      for (int i = 0; i < resetCplData.size(); i++){
+        resetCplDataRescaled[i] = ((resetCplData[i] - resetMin)/(resetMax - resetMin));
+        cplDataRescaled[i] = (((cplDataNorm[i] - resetMin)/(resetMax - resetMin))*2) - 1;
+      }
+
+      double vectorDifference = utils::MasterSlave::l2norm(resetCplDataRescaled)/utils::MasterSlave::l2norm(resetCplDataRescaled - cplDataRescaled);
+
+  
+    }
+
+
+    PRECICE_INFO("vectorDifference: " << vectorDifference);
+    if (vectorDifference > 50 || vectorDifference < 0.02){
+      PRECICE_INFO("Resetting the SVD after the weights were freezed");
+      _psi.resize(0, 0);
+      _phi.resize(0, 0);
+      _sigma.resize(0);
+      _preconditionerApplied = false;
+      _initialSVD            = false;
+      _applyFilterQR         = false;
+      _epsQR2                = 1e-3;
+      cplDataNorm = resetCplData;
+      _preconditioner->unFreeze();
+    }
+
+  }else{
+    PRECICE_INFO("Setting the input data when creating the SVD");
+    cplDataNorm = resetCplData;
+  }
+
+
+
 }
 
 void SVDFactorization::computeQRdecomposition(
