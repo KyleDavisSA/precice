@@ -175,6 +175,60 @@ void QRFactorization::applyFilter(double singularityLimit, std::vector<int> &del
 }
 
 /**
+ * Determines the minimum filter limit value that will delete a column for QR2 and QR3
+ */
+double QRFactorization::getFilterLimitMinimum()
+{
+  _cols = _R.cols();
+
+  double eMin = 0.0;
+  double e = 0.0;
+  double Rindex = _R(0,0);
+  double Rnorm = utils::MasterSlave::l2norm(_R.col(0));
+  e = abs(Rindex/Rnorm);
+  eMin = e;
+
+  for (int k = 1; k < _cols; k++) {
+    Rnorm = utils::MasterSlave::l2norm(_R.col(k));
+    Rindex = _R(k,k);
+    e = abs(_R(k,k)/Rnorm);
+    if (e < eMin)
+      eMin = e;
+  }
+  //PRECICE_INFO("Filter Limits: " << eMin << " - and: " << eMax);
+  return eMin;
+}
+
+double QRFactorization::getFilterLimitMaximum()
+{
+  _cols = _R.cols();
+
+  double eMin = 0.0;
+  double eMax = 0.0;
+  double e = 0.0;
+  double Rindex = _R(0,0);
+  double Rnorm = utils::MasterSlave::l2norm(_R.col(0));
+  e = abs(Rindex/Rnorm);
+  eMin = e;
+
+  Rindex = _R(1,1);
+  Rnorm = utils::MasterSlave::l2norm(_R.col(1));
+  e = abs(Rindex/Rnorm);
+  eMax = e;
+
+  for (int k = 1; k < _cols; k++) {
+    Rnorm = utils::MasterSlave::l2norm(_R.col(k));
+    Rindex = _R(k,k);
+    e = abs(_R(k,k)/Rnorm);
+    if (e < eMin)
+      eMax = eMin;
+      eMin = e;
+  }
+  //PRECICE_INFO("Filter Limits: " << eMin << " - and: " << eMax);
+  return eMax;
+}
+
+/**
  * updates the factorization A=Q[1:n,1:m]R[1:m,1:n] when the kth column of A is deleted.
  * Returns the deleted column v(1:n)
  */

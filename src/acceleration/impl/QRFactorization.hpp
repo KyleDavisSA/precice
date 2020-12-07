@@ -89,6 +89,17 @@ public:
       double                 theta = 1. / 0.7,
       double                 sigma = std::numeric_limits<double>::min());
 
+
+  /**
+   * @brief determines the minimum limit for deleting 1 and half of all columns in R
+   */
+  double getFilterLimitMinimum();
+
+  /**
+   * @brief determines the maximum limit for deleting 1 and half of all columns in R
+   */
+  double getFilterLimitMaximum();
+
   /**
     * @brief inserts a new column at arbitrary position and updates the QR factorization
     * This function works on the memory of v, thus changes the Vector v.
