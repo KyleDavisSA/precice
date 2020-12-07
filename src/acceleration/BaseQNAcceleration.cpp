@@ -176,6 +176,30 @@ void BaseQNAcceleration::initialize(
   }
 
   _preconditioner->initialize(subVectorSizes);
+
+  someConvergenceMeasure = _singularityLimit;
+  if (someConvergenceMeasure > 0.8){
+    if (_filter == Acceleration::QR1FILTER){
+      _singularityLimit = 0.000001;
+      upperLim = 0.002;
+      lowerLim = 0.0000002;
+      setInitialSingularityLimit = 0.0;
+    }
+    if (_filter == Acceleration::QR2FILTER){
+      _singularityLimit = 0.001;
+      upperLim = 0.2;
+      lowerLim = 0.0001;
+      setInitialSingularityLimit = 0.0;
+    }
+    if (_filter == Acceleration::QR3FILTER){
+      _singularityLimit = 0.001;
+      upperLim = 0.2;
+      lowerLim = 0.0001;
+      setInitialSingularityLimit = 0.0;
+    }
+  }
+
+
 }
 
 /** ---------------------------------------------------------------------------------------------
@@ -239,6 +263,12 @@ void BaseQNAcceleration::updateDifferenceMatrices(
         // insert column deltaR = _residuals - _oldResiduals at pos. 0 (front) into the
         // QR decomposition and update decomposition
 
+        PRECICE_INFO("Update V: " << utils::MasterSlave::l2norm(deltaR));
+        PRECICE_INFO("Update W: " << utils::MasterSlave::l2norm(deltaXTilde));
+
+        utils::appendFront(_matrixPseudoVReset, _values);
+        utils::appendFront(_matrixPseudoWReset, _residuals);
+
         //apply scaling here
         _preconditioner->apply(deltaR);
         _qrV.pushFront(deltaR);
@@ -247,6 +277,10 @@ void BaseQNAcceleration::updateDifferenceMatrices(
       } else {
         utils::shiftSetFirst(_matrixV, deltaR);
         utils::shiftSetFirst(_matrixW, deltaXTilde);
+
+        // These can save results to reset the time-window to check different filter values
+        utils::appendFront(_matrixPseudoVReset, _values);
+        utils::appendFront(_matrixPseudoWReset, _residuals);
 
         // inserts column deltaR at pos. 0 to the QR decomposition and deletes the last column
         // the QR decomposition of V is updated
@@ -302,6 +336,10 @@ void BaseQNAcceleration::performAcceleration(
 
   // scale data values (and secondary data values)
   concatenateCouplingData(cplData);
+
+  // Prints the norm of the input data
+  double dataNorm = utils::MasterSlave::l2norm(_oldValues);
+  PRECICE_INFO("Norm of data: " << dataNorm);
 
   /** update the difference matrices V,W  includes:
    * scaling of values
@@ -438,6 +476,12 @@ void BaseQNAcceleration::performAcceleration(
   _firstIteration = false;
 }
 
+void BaseQNAcceleration::newConvMeasure(double newConvMeasure)
+{
+  someConvergenceMeasure = newConvMeasure;
+  PRECICE_INFO("Output of getNorm in convergence writer in QN: " << someConvergenceMeasure);
+}
+
 void BaseQNAcceleration::applyFilter()
 {
   PRECICE_TRACE(_filter);
@@ -460,6 +504,36 @@ void BaseQNAcceleration::applyFilter()
   }
 }
 
+void BaseQNAcceleration::parameterTuning()
+{
+  PRECICE_TRACE(_filter);
+
+  if (_filter == Acceleration::NOFILTER) {
+    // do nothing
+  } else {
+   // _singularityLimit /= 10;
+  }
+  //if (_singularityLimit < 0.00000001){
+  //  _singularityLimit = 0.00000001;
+  //}
+
+  //PRECICE_INFO("New filter limit: " << _singularityLimit);
+}
+
+void BaseQNAcceleration::resetIterationsToChange(int someInt)
+{
+  iterationsToChange = 0;
+}
+
+void BaseQNAcceleration::storeResults(double limit, Eigen::VectorXd newValues)
+{
+  PRECICE_INFO("New values for storing results with limit: " << limit);
+  for (int i = 0; i < 10; i++){
+    PRECICE_INFO(" " << newValues[i]);
+  }
+  
+}
+
 void BaseQNAcceleration::concatenateCouplingData(
     DataMap &cplData)
 {
@@ -470,11 +544,22 @@ void BaseQNAcceleration::concatenateCouplingData(
     int         size      = cplData[id]->values().size();
     auto &      values    = cplData[id]->values();
     const auto &oldValues = cplData[id]->oldValues.col(0);
+    double inputNorm = utils::MasterSlave::l2norm(values);
+    double valMax = 0;
+    double valMin = 100000;
     for (int i = 0; i < size; i++) {
+      if (abs(values(i)) > valMax){
+        valMax = abs(values(i));
+      }
+      if (abs(values(i)) < valMin){
+        valMin = abs(values(i));
+      }
       _values(i + offset)    = values(i);
       _oldValues(i + offset) = oldValues(i);
     }
     offset += size;
+    PRECICE_INFO("Input Norm of data ID: " << id << " - with norm: " << inputNorm << " - with max: " << valMax << " - and min: " << valMin);
+    PRECICE_INFO("Offset: " << offset);
   }
 }
 

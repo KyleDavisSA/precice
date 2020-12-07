@@ -140,6 +140,20 @@ public:
     */
   virtual int getLSSystemCols() const;
 
+  double someConvergenceMeasure = 0.0;
+
+  double lastChange = 0;   // 0 if it last increased limit, 1 if it decreased limit
+  double deletedCols = 0;   // 0 if it last increased limit, 1 if it decreased limit
+  double upperLim = 0;
+  double lowerLim = 0;
+  int deletedColsConstantConverging = 0;   // 0 if it last increased limit, 1 if it decreased limit
+  int iterationsCheckConstantConverging = 0;
+  double setInitialSingularityLimit = 10.0;
+
+  void newConvMeasure(double newConvMeasure);
+
+  void resetIterationsToChange(int someInt);
+
 protected:
   logging::Logger _log{"acceleration::BaseQNAcceleration"};
 
@@ -191,6 +205,9 @@ protected:
   /// @brief Current iteration residuals of IQN data. Temporary.
   Eigen::VectorXd _residuals;
 
+  /// @brief Current iteration delta residuals of IQN data. Temporary.
+  Eigen::VectorXd deltaR;
+
   /// @brief Current iteration residuals of secondary data.
   std::map<int, Eigen::VectorXd> _secondaryResiduals;
 
@@ -199,6 +216,8 @@ protected:
 
   /// @brief Stores x tilde deltas, where x tilde are values computed by solvers.
   Eigen::MatrixXd _matrixW;
+
+  Eigen::MatrixXd _testingValues;
 
   /// @brief Stores the current QR decomposition ov _matrixV, can be updated via deletion/insertion of columns
   impl::QRFactorization _qrV;
@@ -256,6 +275,12 @@ protected:
   /// Applies the filter method for the least-squares system, defined in the configuration
   virtual void applyFilter();
 
+  /// Changes QN parameters for autotuning
+  virtual void parameterTuning();
+
+  /// Changes QN parameters for autotuning
+  virtual void storeResults(double limit, Eigen::VectorXd newValues);
+
   /// Computes underrelaxation for the secondary data
   virtual void computeUnderrelaxationSecondaryData(DataMap &cplData) = 0;
 
@@ -287,6 +312,18 @@ private:
   Eigen::MatrixXd _matrixVBackup;
   Eigen::MatrixXd _matrixWBackup;
   std::deque<int> _matrixColsBackup;
+
+  /** @brief backup of the V,W and matrixCols data structures. Needed
+   * for when a time-window is rerun with varying filter limits
+   */
+  Eigen::MatrixXd _matrixPseudoVReset;
+  Eigen::MatrixXd _matrixPseudoWReset;,
+
+  Eigen::VectorXd _oldValuesTest;
+
+  double _isConvOld;,
+
+  int iterationsToChange = 0;
 
   /// Number of filtered out columns in this time window
   int _nbDelCols = 0;
