@@ -154,6 +154,8 @@ public:
 
   void resetIterationsToChange(int someInt);
 
+  void inputNormMagnitudeFilter()
+
 protected:
   logging::Logger _log{"acceleration::BaseQNAcceleration"};
 

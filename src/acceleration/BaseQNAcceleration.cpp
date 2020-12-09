@@ -735,6 +735,15 @@ void BaseQNAcceleration::storeResults(double limit, Eigen::VectorXd newValues)
   
 }
 
+void BaseQNAcceleration::inputNormMagnitudeFilter()
+{
+  //for(int i = 1; i < _matrixV.cols(); i++)
+  //{
+
+  //}
+  
+}
+
 void BaseQNAcceleration::concatenateCouplingData(
     DataMap &cplData)
 {
