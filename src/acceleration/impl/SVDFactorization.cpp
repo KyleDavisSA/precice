@@ -70,7 +70,7 @@ void SVDFactorization::reset(Eigen::VectorXd &resetCplData)
     //double vectorDifference = utils::MasterSlave::l2norm(cplDataNorm - resetCplData);
     double vectorDifference = utils::MasterSlave::l2norm(cplDataNorm)/utils::MasterSlave::l2norm(resetCplData);
 
-    int checkDataValidity = 1;
+    int checkDataValidity = 0;
 
     /*
       Scale the input data sets between -1 and 1. Subtract the two. If they differ too much, then the
@@ -110,12 +110,11 @@ void SVDFactorization::reset(Eigen::VectorXd &resetCplData)
 
       double vectorDifference = utils::MasterSlave::l2norm(resetCplDataRescaled)/utils::MasterSlave::l2norm(resetCplDataRescaled - cplDataRescaled);
 
-  
     }
 
 
     PRECICE_INFO("vectorDifference: " << vectorDifference);
-    if (vectorDifference > 50 || vectorDifference < 0.02){
+    if (vectorDifference > 5 || vectorDifference < 0.2){
       PRECICE_INFO("Resetting the SVD after the weights were freezed");
       _psi.resize(0, 0);
       _phi.resize(0, 0);

@@ -75,6 +75,9 @@ public:
   virtual void specializedIterationsConverged(DataMap &cplData);
 
 private:
+
+  Eigen::VectorXd resetCplData;
+  
   /// @brief stores the approximation of the inverse Jacobian of the system at current time step.
   Eigen::MatrixXd _invJacobian;
 

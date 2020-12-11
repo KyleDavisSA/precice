@@ -516,6 +516,8 @@ void MVQNAcceleration::restartIMVJ()
     // truncated SVD, i.e., Wtil^0 = \phi, Z^0 = S\psi^T, this should not be added to the SVD.
     int q = _svdJ.isSVDinitialized() ? 1 : 0;
 
+    q = 1;
+
     // perform M-1 rank-1 updates of the truncated SVD-dec of the Jacobian
     for (; q < (int) _WtilChunk.size(); q++) {
       // update SVD, i.e., PSI * SIGMA * PHI^T <-- PSI * SIGMA * PHI^T + Wtil^q * Z^q
@@ -749,9 +751,26 @@ void MVQNAcceleration::specializedIterationsConverged(
        *  Restart the IMVJ according to restart type
        */
       if ((int) _WtilChunk.size() >= _chunkSize + 1) {
-
+        int offset = 0;
+        int totalSize = 0;
+        for (int id : _dataIDs) {
+          totalSize += cplData[id]->values().size();
+        }
+        resetCplData.resize(totalSize);
+        for (int id : _dataIDs) {
+          PtrCouplingData  data   = cplData[id];
+          Eigen::VectorXd &values = data->values();
+          int   size       = data->values().size();
+          for (int i = 0; i < size; i++) {
+            resetCplData[i + offset] = values(i);
+          }
+          offset += size;
+        }
         // < RESTART >
         _nbRestarts++;
+         _svdJ.reset(resetCplData);
+        _preconditioner->update(false, resetCplData, _residuals);
+        _preconditioner->freezeWeights();
         restartIMVJ();
       }
 

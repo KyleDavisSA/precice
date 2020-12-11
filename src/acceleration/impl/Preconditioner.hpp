@@ -7,6 +7,7 @@
 #include "logging/LogMacros.hpp"
 #include "logging/Logger.hpp"
 #include "utils/assertion.hpp"
+#include "utils/MasterSlave.hpp"
 
 namespace precice {
 namespace acceleration {
@@ -218,6 +219,11 @@ public:
   bool isConst()
   {
     return _freezed;
+  }
+
+  void freezeWeights()
+  {
+    _freezed = true;
   }
 
 protected:

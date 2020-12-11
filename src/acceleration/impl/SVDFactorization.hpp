@@ -170,7 +170,7 @@ public:
     _psi.conservativeResize(_rows, _cols);
     _phi.conservativeResize(_rows, _cols);
     _sigma.conservativeResize(_cols);
-    PRECICE_DEBUG("SVD factorization of Jacobian is truncated to " << _cols << " DOFs. Cut off " << waste << " DOFs");
+    PRECICE_INFO("SVD factorization of Jacobian is truncated to " << _cols << " DOFs. Cut off " << waste << " DOFs");
 
     _initialSVD = true;
   }
@@ -184,7 +184,7 @@ public:
   /**
     * @brief: resets the SVD factorization
     */
-  void reset();
+  void reset(Eigen::VectorXd &resetCplData);
 
   /**
     * @brief: returns a matrix representation of the orthogonal matrix Psi, A = Psi * Sigma * Phi^T
@@ -293,6 +293,8 @@ private:
   bool _initialSVD = false;
 
   bool _applyFilterQR = false;
+
+  Eigen::VectorXd cplDataNorm;
 
   /// Optional infostream that writes information to file
   std::fstream *_infostream;
