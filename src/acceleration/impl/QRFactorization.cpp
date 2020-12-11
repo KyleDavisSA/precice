@@ -152,6 +152,25 @@ void QRFactorization::applyFilter(double singularityLimit, std::vector<int> &del
         delIndices.push_back(k);
       }
     }
+  } else if (_filter == Acceleration::QR3FILTER) {
+    _cols = V.cols();
+    _rows = V.rows();
+    int totalCol = _cols;
+    int maxDeleted = 0;
+    // starting with the most recent input/output information, i.e., the latest column
+    // which is at position 0 in _matrixV (latest information is never filtered out!)
+    for (int k = totalCol-1; k > 3; k--) {
+      double Rnorm = utils::MasterSlave::l2norm(_R.col(k));
+      if (_R(k,k) < singularityLimit*Rnorm){
+        if (maxDeleted > 1)
+          break;
+        deleteColumn(k);
+        delIndices.push_back(k);
+        PRECICE_INFO("Column: " << k << " - is deleted from QR");
+        PRECICE_INFO("Total Columns: " << _cols);
+        maxDeleted++;
+      }
+    }
   }
   std::sort(delIndices.begin(), delIndices.end());
 }
