@@ -140,6 +140,20 @@ public:
     */
   virtual int getLSSystemCols() const;
 
+  /// @brief Current iteration residuals of IQN data. Temporary.
+  Eigen::VectorXd _oldROMOutputUpdate;
+
+  /// @brief The input value for solver when the time-window converged
+  Eigen::VectorXd _oldROMTWInput;
+
+  /// @brief The output value for solver when the time-window converged
+  Eigen::VectorXd _oldROMTWOutput;
+
+  /// @brief Concatenation of all coupling data involved in the QN system.
+  Eigen::VectorXd _modelError;
+
+  int convergdROMNoUpdate = 0;
+
 protected:
   logging::Logger _log{"acceleration::BaseQNAcceleration"};
 
@@ -191,6 +205,11 @@ protected:
   /// @brief Current iteration residuals of IQN data. Temporary.
   Eigen::VectorXd _residuals;
 
+  /// @brief Current iteration residuals of IQN data. Temporary.
+  Eigen::VectorXd _residualsROM;
+
+  
+
   /// @brief Current iteration residuals of secondary data.
   std::map<int, Eigen::VectorXd> _secondaryResiduals;
 
@@ -200,8 +219,17 @@ protected:
   /// @brief Stores x tilde deltas, where x tilde are values computed by solvers.
   Eigen::MatrixXd _matrixW;
 
+    /// @brief Stores difference in QN update outputs
+  Eigen::MatrixXd _matrixS;
+
+  /// @brief Stores x tilde deltas, where x tilde are values computed by solvers.
+  Eigen::MatrixXd _matrixT;
+
   /// @brief Stores the current QR decomposition ov _matrixV, can be updated via deletion/insertion of columns
   impl::QRFactorization _qrV;
+
+  /// @brief Stores the current QR decomposition ov _matrixV, can be updated via deletion/insertion of columns
+  impl::QRFactorization _qrROM;
 
   /** @brief filter method that is used to maintain good conditioning of the least-squares system
     *        Either of two types: QR1FILTER or QR2Filter
@@ -262,6 +290,9 @@ protected:
   /// Computes the quasi-Newton update using the specified pp scheme (MVQN, IQNILS)
   virtual void computeQNUpdate(DataMap &cplData, Eigen::VectorXd &xUpdate) = 0;
 
+  /// Computes the quasi-Newton update using the specified pp scheme (MVQN, IQNILS)
+  virtual void computeQNUpdateROM(DataMap &cplData, Eigen::VectorXd &xROMUpdate) = 0;
+
   /// Removes one iteration from V,W matrices and adapts _matrixCols.
   virtual void removeMatrixColumn(int columnIndex);
 
@@ -273,6 +304,8 @@ protected:
 private:
   /// @brief Concatenation of all coupling data involved in the QN system.
   Eigen::VectorXd _values;
+
+  
 
   /// @brief Concatenation of all (old) coupling data involved in the QN system.
   Eigen::VectorXd _oldValues;

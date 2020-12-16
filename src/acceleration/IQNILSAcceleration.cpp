@@ -231,6 +231,110 @@ void IQNILSAcceleration::computeQNUpdate(Acceleration::DataMap &cplData, Eigen::
   }
 }
 
+void IQNILSAcceleration::computeQNUpdateROM(Acceleration::DataMap &cplData, Eigen::VectorXd &xUpdate)
+{
+  PRECICE_TRACE();
+  PRECICE_INFO("   Compute ROM Newton factors");
+
+  // Calculate QR decomposition of matrix V and solve Rc = -Qr
+  Eigen::VectorXd c;
+
+  // for master-slave mode and procs with no vertices,
+  // qrV.cols() = getLSSystemCols() and _qrV.rows() = 0
+  auto Q = _qrROM.matrixQ();
+  auto R = _qrROM.matrixR();
+
+  if (!_hasNodesOnInterface) {
+    //PRECICE_ASSERT(_qrROM.cols() == getLSSystemCols(), _qrV.cols(), getLSSystemCols());
+    //PRECICE_ASSERT(_qrV.rows() == 0, _qrV.rows());
+    //PRECICE_ASSERT(Q.size() == 0, Q.size());
+  }
+
+  Eigen::VectorXd _local_b = Eigen::VectorXd::Zero(_qrROM.cols());
+  Eigen::VectorXd _global_b;
+
+  // need to scale the residual to compensate for the scaling in c = R^-1 * Q^T * P^-1 * residual'
+  // it is also possible to apply the inverse scaling weights from the right to the vector c
+  //_preconditioner->apply(_residuals);
+  _local_b = Q.transpose() * _residualsROM;
+  //_preconditioner->revert(_residuals);
+  _local_b *= -1.0; // = -Qr
+
+  PRECICE_ASSERT(c.size() == 0, c.size());
+  // reserve memory for c
+  utils::append(c, (Eigen::VectorXd) Eigen::VectorXd::Zero(_local_b.size()));
+
+  // compute rhs Q^T*res in parallel
+  if (not utils::MasterSlave::isMaster() && not utils::MasterSlave::isSlave()) {
+    //PRECICE_ASSERT(Q.cols() == getLSSystemCols(), Q.cols(), getLSSystemCols());
+    // back substitution
+    c = R.triangularView<Eigen::Upper>().solve<Eigen::OnTheLeft>(_local_b);
+  } else {
+    PRECICE_ASSERT(utils::MasterSlave::_communication.get() != nullptr);
+    PRECICE_ASSERT(utils::MasterSlave::_communication->isConnected());
+    if (_hasNodesOnInterface) {
+      PRECICE_ASSERT(Q.cols() == getLSSystemCols(), Q.cols(), getLSSystemCols());
+    }
+    PRECICE_ASSERT(_local_b.size() == getLSSystemCols(), _local_b.size(), getLSSystemCols());
+
+    if (utils::MasterSlave::isMaster()) {
+      PRECICE_ASSERT(_global_b.size() == 0, _global_b.size());
+    }
+    utils::append(_global_b, (Eigen::VectorXd) Eigen::VectorXd::Zero(_local_b.size()));
+
+    // do a reduce operation to sum up all the _local_b vectors
+    utils::MasterSlave::reduceSum(_local_b.data(), _global_b.data(), _local_b.size()); // size = getLSSystemCols() = _local_b.size()
+
+    // back substitution R*c = b only in master node
+    if (utils::MasterSlave::isMaster())
+      c = R.triangularView<Eigen::Upper>().solve<Eigen::OnTheLeft>(_global_b);
+
+    // broadcast coefficients c to all slaves
+    utils::MasterSlave::broadcast(c.data(), c.size());
+  }
+
+  PRECICE_DEBUG("   Apply Newton factors");
+  // compute x updates from W and coefficients c, i.e, xUpdate = c*W
+  xUpdate = _matrixT * c;
+
+  //PRECICE_DEBUG("c = " << c);
+
+  /**
+     *  perform QN-Update step for the secondary Data
+     */
+
+  // If the previous time step converged within one single iteration, nothing was added
+  // to the LS system matrices and they need to be restored from the backup at time T-2
+  if (not _firstTimeStep && (getLSSystemCols() < 1) && (_timestepsReused == 0) && not _forceInitialRelaxation) {
+    PRECICE_DEBUG("   Last time step converged after one iteration. Need to restore the secondaryMatricesW from backup.");
+    _secondaryMatricesW = _secondaryMatricesWBackup;
+  }
+
+  // Perform QN relaxation for secondary data
+  for (int id : _secondaryDataIDs) {
+    PtrCouplingData data   = cplData[id];
+    auto &          values = data->values();
+    PRECICE_ASSERT(_secondaryMatricesW[id].cols() == c.size(), _secondaryMatricesW[id].cols(), c.size());
+    values = _secondaryMatricesW[id] * c;
+    PRECICE_ASSERT(values.size() == data->oldValues.col(0).size(), values.size(), data->oldValues.col(0).size());
+    values += data->oldValues.col(0);
+    PRECICE_ASSERT(values.size() == _secondaryResiduals[id].size(), values.size(), _secondaryResiduals[id].size());
+    values += _secondaryResiduals[id];
+  }
+
+  // pending deletion: delete old secondaryMatricesW
+  if (_firstIteration && _timestepsReused == 0 && not _forceInitialRelaxation) {
+    // save current secondaryMatrix data in case the coupling for the next time step will terminate
+    // after the first iteration (no new data, i.e., V = W = 0)
+    if (getLSSystemCols() > 0) {
+      _secondaryMatricesWBackup = _secondaryMatricesW;
+    }
+    for (int id : _secondaryDataIDs) {
+      _secondaryMatricesW[id].resize(0, 0);
+    }
+  }
+}
+
 void IQNILSAcceleration::specializedIterationsConverged(
     DataMap &cplData)
 {

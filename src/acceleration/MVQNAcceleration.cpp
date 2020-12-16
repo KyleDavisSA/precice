@@ -236,6 +236,35 @@ void MVQNAcceleration::computeQNUpdate(
 }
 
 // ==================================================================================
+void MVQNAcceleration::computeQNUpdateROM(
+    Acceleration::DataMap &cplData,
+    Eigen::VectorXd &      xUpdate)
+{
+  /**
+   * The inverse Jacobian
+   *
+   *        J_inv = J_inv_n + (W - J_inv_n*V)*(V^T*V)^-1*V^T
+   *
+   * is computed and the resulting quasi-Newton update is returned.
+   * Used matrices (V, W, Wtil, invJacobian, oldINvJacobian) are
+   * scaled with the used preconditioner.
+   */
+
+  /**
+   *  The MVJ- quasi-Newton update
+   *  Either compute efficient, omitting to build the Jacobian in each iteration or inefficient.
+   *  INVARIANT: All objects, J_inv, J_old_inv, W, V, Wtil, xUpdate, res, etc. are unscaled.
+   *             Only the QR-decomposition of V is scaled and thus needs to be unscaled before
+   *             using it in multiplications with the other matrices.
+   */
+  if (_alwaysBuildJacobian) {
+    computeNewtonUpdate(cplData, xUpdate);
+  } else {
+    computeNewtonUpdateEfficient(cplData, xUpdate);
+  }
+}
+
+// ==================================================================================
 void MVQNAcceleration::pseudoInverse(
     Eigen::MatrixXd &pseudoInverse)
 {

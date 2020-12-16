@@ -45,6 +45,7 @@ BaseQNAcceleration::BaseQNAcceleration(
       _dataIDs(dataIDs),
       _forceInitialRelaxation(forceInitialRelaxation),
       _qrV(filter),
+      _qrROM(filter),
       _filter(filter),
       _singularityLimit(singularityLimit),
       _infostringstream(std::ostringstream::ate)
@@ -156,7 +157,14 @@ void BaseQNAcceleration::initialize(
 
   // set the number of global rows in the QRFactorization. This is essential for the correctness in master-slave mode!
   _qrV.setGlobalRows(getLSSystemRows());
+  _qrROM.setGlobalRows(getLSSystemRows());
 
+  //_oldROMTWInput.Zero(getLSSystemRows());
+  //_oldROMTWOutput.Zero(getLSSystemRows());
+ // Eigen::VectorXd _oldROMTWInput = Eigen::VectorXd::Zero(getLSSystemRows());
+  //Eigen::VectorXd _oldROMTWOutput = Eigen::VectorXd::Zero(getLSSystemRows());
+
+  Eigen::VectorXd xUpdate = Eigen::VectorXd::Zero(_residuals.size());
   // Fetch secondary data IDs, to be relaxed with same coefficients from IQN-ILS
   for (DataMap::value_type &pair : cplData) {
     if (not utils::contained(pair.first, _dataIDs)) {
@@ -194,6 +202,8 @@ void BaseQNAcceleration::updateDifferenceMatrices(
   _residuals = _values;
   _residuals -= _oldValues;
 
+  //_oldROMTWOutput = _oldValues;
+
   if (math::equals(utils::MasterSlave::l2norm(_residuals), 0.0)) {
     PRECICE_WARN("The coupling residual equals almost zero. There is maybe something wrong in your adapter. "
                  "Maybe you always write the same data or you call advance without "
@@ -204,6 +214,10 @@ void BaseQNAcceleration::updateDifferenceMatrices(
   //if (_firstIteration && (_firstTimeStep || (_matrixCols.size() < 2))) {
   if (_firstIteration && (_firstTimeStep || _forceInitialRelaxation)) {
     // do nothing: constant relaxation
+    _oldROMTWInput = _values * 0;
+    _oldROMTWOutput = _values * 0;
+    _modelError = _values * 0;
+
   } else {
     PRECICE_DEBUG("   Update Difference Matrices");
     if (not _firstIteration) {
@@ -219,6 +233,9 @@ void BaseQNAcceleration::updateDifferenceMatrices(
             << "converge. Maybe the number of allowed columns (\"max-used-iterations\") should be limited.");
 
       Eigen::VectorXd deltaR = _residuals;
+
+      PRECICE_INFO("  Residual value from solver: " << utils::MasterSlave::l2norm(_residuals));
+      PRECICE_INFO("  Absolute input value from solver: " << utils::MasterSlave::l2norm(_values));  
       deltaR -= _oldResiduals;
 
       Eigen::VectorXd deltaXTilde = _values;
@@ -236,12 +253,40 @@ void BaseQNAcceleration::updateDifferenceMatrices(
         utils::appendFront(_matrixV, deltaR);
         utils::appendFront(_matrixW, deltaXTilde);
 
+        if ((its >= 0) && (tSteps > 2) && (convergdROMNoUpdate == 0)){
+
+          PRECICE_INFO("  Norm of OLD Input: " << utils::MasterSlave::l2norm(_oldROMTWInput));
+          PRECICE_INFO("  Norm of OLD Output: " << utils::MasterSlave::l2norm(_oldROMTWOutput));
+          
+          //_oldROMOutputUpdate -= _oldROMTWInput;
+          //PRECICE_INFO("  oldROMOutputUpdate: " << utils::MasterSlave::l2norm(_oldROMOutputUpdate));
+          //Eigen::VectorXd deltaXIn = _residuals;//_values - _oldROMTWOutput;
+          Eigen::VectorXd deltaXIn = _values - _oldROMTWOutput;
+          _modelError += deltaXIn;
+          _oldROMOutputUpdate -= _values;
+            
+          PRECICE_INFO("  _residuals from solver: " << utils::MasterSlave::l2norm(deltaXIn));
+          PRECICE_INFO("  model Error: " << utils::MasterSlave::l2norm(_oldROMOutputUpdate));
+          
+          utils::appendFront(_matrixS, _residualsROM);//_oldROMOutputUpdate);
+          //utils::appendFront(_matrixT, deltaXIn);
+          utils::appendFront(_matrixT, deltaXIn);
+
+          PRECICE_INFO("  Finish appending ");
+        }
+        if(convergdROMNoUpdate == 1){
+          convergdROMNoUpdate = 0;
+        }
+
         // insert column deltaR = _residuals - _oldResiduals at pos. 0 (front) into the
         // QR decomposition and update decomposition
 
         //apply scaling here
         _preconditioner->apply(deltaR);
         _qrV.pushFront(deltaR);
+        //_qrROM.pushFront(_oldROMOutputUpdate);
+
+        //PRECICE_INFO("Residual value from solver: " << _matrixS);
 
         _matrixCols.front()++;
       } else {
@@ -253,6 +298,8 @@ void BaseQNAcceleration::updateDifferenceMatrices(
         _preconditioner->apply(deltaR);
         _qrV.pushFront(deltaR);
         _qrV.popBack();
+        //_qrROM.pushFront(_oldROMOutputUpdate);
+        //_qrROM.popBack();
 
         _matrixCols.front()++;
         _matrixCols.back()--;
@@ -309,9 +356,29 @@ void BaseQNAcceleration::performAcceleration(
    * appending the difference matrices
    */
   updateDifferenceMatrices(cplData);
+  
+  /*
+  Eigen::VectorXd xROMUpdateTest = Eigen::VectorXd::Zero(_residuals.size());
+  Eigen::VectorXd _residualsROMOld = Eigen::VectorXd::Zero(_residuals.size());
+  if (its >= 1 && tSteps > 2){
+    _residualsROM += 0.001*_residualsROM;
+      PRECICE_INFO("  Before reset qrROM with rows: " << _matrixS.rows());
+      _qrROM.reset(_matrixS, _matrixS.rows());
+      PRECICE_INFO("  Before ROM update - _residualsROM: " << utils::MasterSlave::l2norm(_residualsROM));
+      
+      computeQNUpdateROM(cplData, xROMUpdateTest);
+      
+      PRECICE_INFO("  ROM output for residuals: " << utils::MasterSlave::l2norm(xROMUpdateTest)); 
+      //xROMUpdateTest -= _oldROMTWOutput;
+      //PRECICE_INFO("  ROM output for residuals with update: " << utils::MasterSlave::l2norm(xROMUpdate)); 
+    }
+    _residualsROMOld = _residualsROM;
+    */
+
+  PRECICE_INFO("Finish update difference");
 
   if (_firstIteration && (_firstTimeStep || _forceInitialRelaxation)) {
-    PRECICE_DEBUG("   Performing underrelaxation");
+    PRECICE_INFO("   Performing underrelaxation");
     _oldXTilde    = _values;    // Store x tilde
     _oldResiduals = _residuals; // Store current residual
 
@@ -321,9 +388,42 @@ void BaseQNAcceleration::performAcceleration(
     _residuals += _oldValues;
     _values = _residuals;
 
+    /*
+    _residualsROM = _residuals;
+    Eigen::VectorXd xROMUpdateOld = Eigen::VectorXd::Zero(_residuals.size());
+    Eigen::VectorXd xROMUpdate = Eigen::VectorXd::Zero(_residuals.size());
+    if(tSteps > 6){
+      int i = 0;
+      PRECICE_INFO("  Before reset qrROM with rows: " << _matrixS.rows());
+      _qrROM.reset(_matrixS, _matrixS.rows());
+      for(i = 0; i<40; i++){
+        computeQNUpdateROM(cplData, xROMUpdate);
+        Eigen::VectorXd xROMUpdateOldConverged = Eigen::VectorXd::Zero(_residuals.size());
+        xROMUpdateOldConverged = xROMUpdateOld - xROMUpdate;
+        //if (utils::MasterSlave::l2norm(xROMUpdateOldConverged)/utils::MasterSlave::l2norm(xROMUpdateOld) < 0.001)
+        if (utils::MasterSlave::l2norm(xROMUpdate) < 0.001)
+          break;
+        xROMUpdateOld += 0.05*xROMUpdate;
+        //xROMUpdate *= 0.1;
+        //xROMUpdate += _oldROMTWOutput;
+        _residualsROM = 0.05*xROMUpdate;
+        PRECICE_INFO("  Surrogate model ROM Output: " << utils::MasterSlave::l2norm(xROMUpdate));
+      }
+      PRECICE_INFO("  Surrogate model optimisation with iterations: " << i);
+      //PRECICE_INFO("  QN Values " << _values);
+      _values = _oldValues + xROMUpdateOld;
+      _residualsROM = _values - _oldValues;
+      //_values += 0.2*(xROMUpdate + _oldROMTWOutput);
+      convergdROMNoUpdate = 1;
+      //PRECICE_INFO("  ROM Values " << _values);
+    }
+    */
+    _oldROMOutputUpdate = _values;
+    _residualsROM = _values - _oldValues;
+
     computeUnderrelaxationSecondaryData(cplData);
   } else {
-    PRECICE_DEBUG("   Performing quasi-Newton Step");
+    PRECICE_INFO("   Performing quasi-Newton Step");
 
     // If the previous time step converged within one single iteration, nothing was added
     // to the LS system matrices and they need to be restored from the backup at time T-2
@@ -339,6 +439,7 @@ void BaseQNAcceleration::performAcceleration(
       // after the first iteration and the matrix data from time step t-2 has to be used
       _preconditioner->apply(_matrixV);
       _qrV.reset(_matrixV, getLSSystemRows());
+      //_qrROM.reset(_matrixS, _matrixS.rows());
       _preconditioner->revert(_matrixV);
       _resetLS = true; // need to recompute _Wtil, Q, R (only for IMVJ efficient update)
     }
@@ -384,6 +485,125 @@ void BaseQNAcceleration::performAcceleration(
      * apply quasiNewton update
      */
     _values = _oldValues + xUpdate + _residuals; // = x^k + delta_x + r^k - q^k
+
+    
+    /*
+    * This is the old ROM that checks changes per iteration.
+    * This does not work
+    _residualsROM = _values - _oldValues;// - _oldROMOutputUpdate; //- _oldROMTWInput;
+    //_residualsROM = xUpdate + _residuals;
+    _oldROMOutputUpdate = _values - _oldValues;
+
+    Eigen::VectorXd xROMUpdate = Eigen::VectorXd::Zero(_residuals.size());
+
+    if (its >= 1 && tSteps > 2){
+      PRECICE_INFO("  Before reset qrROM with rows: " << _matrixS.rows());
+      _qrROM.reset(_matrixS, _matrixS.rows());
+      PRECICE_INFO("  Before ROM update - _residualsROM: " << utils::MasterSlave::l2norm(_residualsROM));
+      computeQNUpdateROM(cplData, xROMUpdate);
+      
+
+      PRECICE_INFO("  ROM output for residuals: " << utils::MasterSlave::l2norm(xROMUpdate)); 
+      //Eigen::VectorXd xROMUpdateDiffCheck = xROMUpdate - xROMUpdateTest;
+      //Eigen::VectorXd xROMUpdateDiffCheck = _residualsROM - _residualsROMOld;
+      _modelError = xROMUpdate; // needs to have _residuals subtracted from it.
+
+      //xROMUpdate += _oldROMTWOutput; //xROMUpdate becomes the values for the solver
+      Eigen::VectorXd xROMUpdateDiffCheck = xROMUpdate - _values;
+      PRECICE_INFO("  ROM output for residuals with update diff check: " << utils::MasterSlave::l2norm(xROMUpdateDiffCheck)); 
+      PRECICE_INFO("  ROM predicted output values: " << utils::MasterSlave::l2norm(xROMUpdate)); 
+    }
+
+
+    Eigen::VectorXd xROMUpdateOld = Eigen::VectorXd::Zero(_residuals.size());
+    //xROMUpdateOld = _oldValues;
+    if(tSteps > 20 && (its == 1)){
+      int i = 0;
+      for(i = 0; i<15; i++){
+        
+        computeQNUpdateROM(cplData, xROMUpdate);
+        Eigen::VectorXd xROMUpdateOldConverged = Eigen::VectorXd::Zero(_residuals.size());
+        xROMUpdateOldConverged = xROMUpdateOld - xROMUpdate;
+        //if (utils::MasterSlave::l2norm(xROMUpdateOldConverged)/utils::MasterSlave::l2norm(xROMUpdateOld) < 0.001)
+        if (utils::MasterSlave::l2norm(xROMUpdate) < 0.001)
+          break;
+        xROMUpdateOld += xROMUpdate;
+        //xROMUpdate *= 0.1;
+        //xROMUpdate += _oldROMTWOutput;
+        _residualsROM = 0.5*xROMUpdate;
+        PRECICE_INFO("  Surrogate model ROM Output: " << utils::MasterSlave::l2norm(xROMUpdate));
+      }
+      PRECICE_INFO("  Surrogate model optimisation with iterations: " << i);
+      //PRECICE_INFO("  QN Values " << _values);
+      //_values = _oldValues + xROMUpdateOld;
+      _residualsROM = _values - _oldValues;
+      _values = (_oldValues + xROMUpdateOld); //+ 0.5*(_oldValues + xUpdate + _residuals);
+      convergdROMNoUpdate = 1;
+      //PRECICE_INFO("  ROM Values " << _values);
+    }
+
+
+    */
+
+    _residualsROM = _values - _oldROMTWOutput;// - _oldROMTWInput;// - _oldROMOutputUpdate; //- _oldROMTWInput;
+    PRECICE_INFO("  Values magnitude: " << utils::MasterSlave::l2norm(_values));
+    //_residualsROM = xUpdate + _residuals;
+    //_oldROMOutputUpdate = _values - _oldValues;
+    _oldROMOutputUpdate = _values;
+
+    Eigen::VectorXd xROMUpdate = Eigen::VectorXd::Zero(_residuals.size());
+
+    if (its == 1 && tSteps > 2){
+      PRECICE_INFO("  Before reset qrROM with rows: " << _matrixS.cols());
+      _qrROM.reset(_matrixS, _matrixS.rows());
+      PRECICE_INFO("  Before ROM update - _residualsROM: " << utils::MasterSlave::l2norm(_residualsROM));
+      computeQNUpdateROM(cplData, xROMUpdate);
+      
+
+      PRECICE_INFO("  ROM output for residuals: " << utils::MasterSlave::l2norm(xROMUpdate)); 
+      //Eigen::VectorXd xROMUpdateDiffCheck = xROMUpdate - xROMUpdateTest;
+      //Eigen::VectorXd xROMUpdateDiffCheck = _residualsROM - _residualsROMOld;
+      _modelError = xROMUpdate; // needs to have _residuals subtracted from it.
+
+      //xROMUpdate += _oldROMTWOutput; //xROMUpdate becomes the values for the solver
+      Eigen::VectorXd xROMUpdateDiffCheck = (xROMUpdate + _oldROMTWOutput) - (_values);
+      PRECICE_INFO("  ROM output for residuals with update diff check: " << utils::MasterSlave::l2norm(xROMUpdateDiffCheck)); 
+      PRECICE_INFO("  ROM predicted output values: " << utils::MasterSlave::l2norm(xROMUpdate)); 
+    }
+
+
+    Eigen::VectorXd xROMUpdateOld = Eigen::VectorXd::Zero(_residuals.size());
+    //xROMUpdateOld = _oldValues;
+    if(tSteps > 5 && (its == 1)){
+      int i = 0;
+      for(i = 0; i<15; i++){
+        
+        computeQNUpdateROM(cplData, xROMUpdate);
+        Eigen::VectorXd xROMUpdateOldConverged = Eigen::VectorXd::Zero(_residuals.size());
+        xROMUpdateOldConverged = xROMUpdateOld - xROMUpdate;
+        if (utils::MasterSlave::l2norm(xROMUpdateOldConverged)/utils::MasterSlave::l2norm(xROMUpdateOld) < 0.001)
+          break;
+        //if (utils::MasterSlave::l2norm(xROMUpdate) < 0.001)
+        xROMUpdateOld = xROMUpdate;
+        //xROMUpdate *= 0.1;
+        //xROMUpdate += _oldROMTWOutput;
+        _residualsROM = xROMUpdate + _oldROMTWOutput;
+        PRECICE_INFO("  Surrogate model ROM Output: " << utils::MasterSlave::l2norm(_residualsROM));
+        _residualsROM = 0.1*xROMUpdate;
+      }
+      _residualsROM = xROMUpdate + _oldROMTWOutput;
+      PRECICE_INFO("  Surrogate model ROM Output: " << utils::MasterSlave::l2norm(_residualsROM - _values));
+      PRECICE_INFO("  Surrogate model optimisation with iterations: " << i);
+      //PRECICE_INFO("  QN Values " << _values);
+      _values *= 0.5;
+      _values += 0.5*_residualsROM;//_oldValues + xROMUpdateOld;
+      //_residualsROM = _values - _oldValues;
+     // _values = (_oldValues + xROMUpdateOld); //+ 0.5*(_oldValues + xUpdate + _residuals);
+      convergdROMNoUpdate = 1;
+      //PRECICE_INFO("  ROM Values " << _values);
+    }
+
+    _residualsROM = _values - _oldROMTWOutput;
 
     // pending deletion: delete old V, W matrices if timestepsReused = 0
     // those were only needed for the first iteration (instead of underrelax.)
@@ -521,7 +741,12 @@ void BaseQNAcceleration::iterationsConverged(
   // this has to be done in iterations converged, as PP won't be called any more if
   // convergence was achieved
   concatenateCouplingData(cplData);
+  convergdROMNoUpdate = 0;
   updateDifferenceMatrices(cplData);
+  convergdROMNoUpdate = 0;
+
+  _oldROMTWInput = _oldROMOutputUpdate;
+  _oldROMTWOutput = _values;
 
   if (not _matrixCols.empty() && _matrixCols.front() == 0) { // Did only one iteration
     _matrixCols.pop_front();

@@ -317,7 +317,7 @@ int QRFactorization::orthogonalize(
   PRECICE_TRACE();
 
   if (not utils::MasterSlave::isMaster() && not utils::MasterSlave::isSlave()) {
-    PRECICE_ASSERT(_globalRows == _rows, _globalRows, _rows);
+    //PRECICE_ASSERT(_globalRows == _rows, _globalRows, _rows);
   }
 
   bool            null        = false;

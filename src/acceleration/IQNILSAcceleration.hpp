@@ -64,6 +64,9 @@ private:
   /// computes the IQN-ILS update using QR decomposition
   virtual void computeQNUpdate(DataMap &cplData, Eigen::VectorXd &xUpdate);
 
+  /// computes the IQN-ILS update using QR decomposition
+  virtual void computeQNUpdateROM(DataMap &cplData, Eigen::VectorXd &xUpdate);
+
   /// computes underrelaxation for the secondary data
   virtual void computeUnderrelaxationSecondaryData(DataMap &cplData);
 
