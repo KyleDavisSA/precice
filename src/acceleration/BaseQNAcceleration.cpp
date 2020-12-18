@@ -268,9 +268,9 @@ void BaseQNAcceleration::updateDifferenceMatrices(
           PRECICE_INFO("  _residuals from solver: " << utils::MasterSlave::l2norm(deltaXIn));
           PRECICE_INFO("  model Error: " << utils::MasterSlave::l2norm(_oldROMOutputUpdate));
           
-          utils::appendFront(_matrixS, _residualsROM);//_oldROMOutputUpdate);
+          //utils::appendFront(_matrixS, _residualsROM);//_oldROMOutputUpdate);
           //utils::appendFront(_matrixT, deltaXIn);
-          utils::appendFront(_matrixT, deltaXIn);
+          //utils::appendFront(_matrixT, deltaXIn);
 
           PRECICE_INFO("  Finish appending ");
         }
@@ -421,6 +421,10 @@ void BaseQNAcceleration::performAcceleration(
     _oldROMOutputUpdate = _values;
     _residualsROM = _values - _oldValues;
 
+    _oldROMTWOutput = _values;
+    PRECICE_INFO("  Values magnitude: " << utils::MasterSlave::l2norm(_values));
+    //utils::appendFront(_matrixS, _values);
+
     computeUnderrelaxationSecondaryData(cplData);
   } else {
     PRECICE_INFO("   Performing quasi-Newton Step");
@@ -468,7 +472,8 @@ void BaseQNAcceleration::performAcceleration(
     }
 
     // apply the configured filter to the LS system
-    applyFilter();
+    if (its != 0)
+      applyFilter();
 
     // revert scaling of V, in computeQNUpdate all data objects are unscaled.
     _preconditioner->revert(_matrixV);
@@ -545,15 +550,141 @@ void BaseQNAcceleration::performAcceleration(
 
     */
 
+    _residualsROM = xUpdate + _residuals;
+    PRECICE_INFO("  Values magnitude iteration update: " << utils::MasterSlave::l2norm(_residualsROM));
     _residualsROM = _values - _oldROMTWOutput;// - _oldROMTWInput;// - _oldROMOutputUpdate; //- _oldROMTWInput;
     PRECICE_INFO("  Values magnitude: " << utils::MasterSlave::l2norm(_values));
+    PRECICE_INFO("  Values magnitude difference: " << utils::MasterSlave::l2norm(_residualsROM));
+
+    utils::appendFront(_matrixS, _values);
+
+    for (int i = 0; i < _matrixS.cols(); i++){
+      Eigen::VectorXd valDiff = Eigen::VectorXd::Zero(_residuals.size());
+      valDiff = _matrixS.col(i) - _values;
+      //PRECICE_INFO("  valDiff: " << utils::MasterSlave::l2norm(valDiff));
+    }
+    for (int i = 0; i < _matrixS.cols(); i++){
+      PRECICE_INFO("  values: " << utils::MasterSlave::l2norm(_matrixS.col(i)));
+    }
+    PRECICE_INFO("  number of columns before: " << _matrixV.cols());
+    PRECICE_INFO("  matrixCols: " << _matrixCols);
+
+    /*
+    *   Auto filtering of Vk 
+    * 
+    * */
+    if (_timestepsReused > 1 ){
+      if (tSteps == 0 && its == 2){
+        PRECICE_INFO("  deleting extra columns second");
+        _qrV.deleteColumn(_matrixV.cols() - 1);
+        removeMatrixColumn(_matrixV.cols() - 1);
+      }  
+
+      if (tSteps == 1 && its == 0){
+        PRECICE_INFO("Removing columns in TS = 1");
+        int k = _matrixCols[1];
+        if (k > 8){
+          _qrV.deleteColumn(_matrixV.cols()-1);
+          removeMatrixColumn(_matrixV.cols()-1);
+          _qrV.deleteColumn(_matrixV.cols()-2);
+          removeMatrixColumn(_matrixV.cols()-2);
+        }
+      }
+      if (tSteps > 1 && its == 0) {
+        int k = _matrixCols[1];
+        if (k >= 10){
+          PRECICE_INFO("  Removing 3 old column: " << k);
+          _qrV.deleteColumn(k);
+          removeMatrixColumn(k);
+          _qrV.deleteColumn(k-1);
+          removeMatrixColumn(k-1);
+          _qrV.deleteColumn(k-2);
+          removeMatrixColumn(k-2);
+          //_matrixCols[1] -= 1;
+        } else if (k >= 7){
+          PRECICE_INFO("  Removing 2 old column: " << k);
+          _qrV.deleteColumn(k);
+          removeMatrixColumn(k);
+          _qrV.deleteColumn(k-1);
+          removeMatrixColumn(k-1);
+          //_matrixCols[1] -= 1;
+        } else {
+          PRECICE_INFO("  Removing 1 old column: " << k);
+          _qrV.deleteColumn(k);
+          removeMatrixColumn(k);
+          //_matrixCols[1] -= 1;
+        }
+      }
+    }else if (_timestepsReused == 0 ){
+      if (its == 2){
+      PRECICE_INFO("  deleting extra columns second for IMVJ");
+      _qrV.deleteColumn(_matrixV.cols() - 1);
+      removeMatrixColumn(_matrixV.cols() - 1);
+      }  
+    }
+
+    /*
+    if (tSteps == 0 && its == 3){
+      PRECICE_INFO("  deleting extra columns");
+      _qrV.deleteColumn(_matrixV.cols() - 1);
+      removeMatrixColumn(_matrixV.cols() - 1);      
+      _qrV.popBack();
+      _qrV.popBack();
+      _qrV.popBack();
+      _qrV.popBack();
+      _qrV.popBack();
+      _qrV.popBack();
+      _qrV.popBack();
+      _qrV.popBack(); 
+      _singularityLimit = 0.05;
+      _preconditioner->update(false, _values, _residuals);
+    // apply scaling to V, V' := P * V (only needed to reset the QR-dec of V)
+    _preconditioner->apply(_matrixV);
+
+    if (_preconditioner->requireNewQR()) {
+      if (not(_filter == Acceleration::QR2FILTER)) { //for QR2 filter, there is no need to do this twice
+        _qrV.reset(_matrixV, getLSSystemRows());
+      }
+      _preconditioner->newQRfulfilled();
+    }
+    PRECICE_INFO("  number of columns after: " << _matrixV.cols());
+    
+
+    if (_firstIteration) {
+      _nbDelCols  = 0;
+      _nbDropCols = 0;
+    }
+
+    // apply the configured filter to the LS system
+    applyFilter();
+
+    // revert scaling of V, in computeQNUpdate all data objects are unscaled.
+    _preconditioner->revert(_matrixV);
+
+    /**
+     * compute quasi-Newton update
+     * PRECONDITION: All objects are unscaled, except the matrices within the QR-dec of V.
+     *               Thus, the pseudo inverse needs to be reverted before using it.
+     */
+    //Eigen::VectorXd xUpdate = Eigen::VectorXd::Zero(_residuals.size());
+    //computeQNUpdate(cplData, xUpdate);
+
+    /**
+     * apply quasiNewton update
+     */
+    //_values = _oldValues + xUpdate + _residuals; // = x^k + delta_x + r^k - q^k
+    //PRECICE_INFO("  newValue: " << utils::MasterSlave::l2norm(_values));
+    //_singularityLimit = 0.05;
+    //}
+    
+
     //_residualsROM = xUpdate + _residuals;
     //_oldROMOutputUpdate = _values - _oldValues;
     _oldROMOutputUpdate = _values;
 
     Eigen::VectorXd xROMUpdate = Eigen::VectorXd::Zero(_residuals.size());
-
-    if (its == 1 && tSteps > 2){
+    /*
+    if (its == 1 && tSteps < 0){
       PRECICE_INFO("  Before reset qrROM with rows: " << _matrixS.cols());
       _qrROM.reset(_matrixS, _matrixS.rows());
       PRECICE_INFO("  Before ROM update - _residualsROM: " << utils::MasterSlave::l2norm(_residualsROM));
@@ -574,7 +705,7 @@ void BaseQNAcceleration::performAcceleration(
 
     Eigen::VectorXd xROMUpdateOld = Eigen::VectorXd::Zero(_residuals.size());
     //xROMUpdateOld = _oldValues;
-    if(tSteps > 5 && (its == 1)){
+    if(tSteps == 5 && (its < 0)){
       int i = 0;
       for(i = 0; i<15; i++){
         
@@ -595,14 +726,17 @@ void BaseQNAcceleration::performAcceleration(
       PRECICE_INFO("  Surrogate model ROM Output: " << utils::MasterSlave::l2norm(_residualsROM - _values));
       PRECICE_INFO("  Surrogate model optimisation with iterations: " << i);
       //PRECICE_INFO("  QN Values " << _values);
-      _values *= 0.5;
-      _values += 0.5*_residualsROM;//_oldValues + xROMUpdateOld;
+      //_values *= 0.5;
+      //_values += 0.5*_residualsROM;//_oldValues + xROMUpdateOld;
       //_residualsROM = _values - _oldValues;
      // _values = (_oldValues + xROMUpdateOld); //+ 0.5*(_oldValues + xUpdate + _residuals);
-      convergdROMNoUpdate = 1;
+      convergdROMNoUpdate = 0;
       //PRECICE_INFO("  ROM Values " << _values);
     }
-
+    */
+    if (its == 0){
+      _oldROMTWOutput = _values;
+    }
     _residualsROM = _values - _oldROMTWOutput;
 
     // pending deletion: delete old V, W matrices if timestepsReused = 0
@@ -621,6 +755,7 @@ void BaseQNAcceleration::performAcceleration(
       if (not _firstTimeStep) {
         _matrixV.resize(0, 0);
         _matrixW.resize(0, 0);
+        _matrixS.resize(0, 0);
         _matrixCols.clear();
         _matrixCols.push_front(0); // vital after clear()
         _qrV.reset();
@@ -674,7 +809,7 @@ void BaseQNAcceleration::applyFilter()
 
       removeMatrixColumn(delIndices[i]);
 
-      PRECICE_DEBUG(" Filter: removing column with index " << delIndices[i] << " in iteration " << its << " of time step: " << tSteps);
+      PRECICE_INFO(" Filter: removing column with index " << delIndices[i] << " in iteration " << its << " of time step: " << tSteps);
     }
     PRECICE_ASSERT(_matrixV.cols() == _qrV.cols(), _matrixV.cols(), _qrV.cols());
   }
@@ -747,6 +882,8 @@ void BaseQNAcceleration::iterationsConverged(
 
   _oldROMTWInput = _oldROMOutputUpdate;
   _oldROMTWOutput = _values;
+ // _matrixS.resize(0, 0);
+ // _matrixT.resize(0, 0);
 
   if (not _matrixCols.empty() && _matrixCols.front() == 0) { // Did only one iteration
     _matrixCols.pop_front();
@@ -830,6 +967,7 @@ void BaseQNAcceleration::removeMatrixColumn(
   PRECICE_ASSERT(_matrixV.cols() > 1);
   utils::removeColumnFromMatrix(_matrixV, columnIndex);
   utils::removeColumnFromMatrix(_matrixW, columnIndex);
+  utils::removeColumnFromMatrix(_matrixS, columnIndex);
 
   // Reduce column count
   std::deque<int>::iterator iter = _matrixCols.begin();

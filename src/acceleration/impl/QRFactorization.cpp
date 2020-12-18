@@ -150,6 +150,7 @@ void QRFactorization::applyFilter(double singularityLimit, std::vector<int> &del
       bool inserted = insertColumn(_cols, v, singularityLimit);
       if (!inserted) {
         delIndices.push_back(k);
+        //PRECICE_INFO("Column `" << k << "` was deleted");
       }
     }
   }
