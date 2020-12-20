@@ -222,6 +222,7 @@ void BaseQNAcceleration::updateDifferenceMatrices(
       deltaR -= _oldResiduals;
 
       Eigen::VectorXd deltaXTilde = _values;
+      PRECICE_INFO("Magnitude values: " << utils::MasterSlave::l2norm(_values));
       deltaXTilde -= _oldXTilde;
 
       PRECICE_CHECK(not math::equals(utils::MasterSlave::l2norm(deltaR), 0.0), "Attempting to add a zero vector to the quasi-Newton V matrix. This means that the residual "
@@ -451,10 +452,10 @@ void BaseQNAcceleration::applyFilter()
     // start with largest index (as V,W matrices are shrinked and shifted
 
     for (int i = delIndices.size() - 1; i >= 0; i--) {
-
+      PRECICE_INFO("Number of columns: " << _matrixV.cols());
       removeMatrixColumn(delIndices[i]);
 
-      PRECICE_DEBUG(" Filter: removing column with index " << delIndices[i] << " in iteration " << its << " of time step: " << tSteps);
+      PRECICE_INFO(" Filter: removing column with index " << delIndices[i] << " in iteration " << its << " of time step: " << tSteps);
     }
     PRECICE_ASSERT(_matrixV.cols() == _qrV.cols(), _matrixV.cols(), _qrV.cols());
   }
