@@ -41,6 +41,13 @@ void ConstantRelaxationAcceleration::initialize(DataMap &cplData)
   }
 }
 
+void ConstantRelaxationAcceleration::addConvergenceData(
+    double &k,
+    int &h)
+{
+}
+
+
 void ConstantRelaxationAcceleration::performAcceleration(DataMap &cplData)
 {
   PRECICE_TRACE();

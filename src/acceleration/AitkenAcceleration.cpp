@@ -28,6 +28,13 @@ AitkenAcceleration::AitkenAcceleration(double           initialRelaxation,
                     << "be larger than zero and smaller or equal to one. Current initial relaxation is: " << _initialRelaxation);
 }
 
+void AitkenAcceleration::addConvergenceData(
+    double &k,
+    int &h)
+{
+}
+
+
 void AitkenAcceleration::initialize(DataMap &cplData)
 {
   checkDataIDs(cplData);

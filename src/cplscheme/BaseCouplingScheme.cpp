@@ -543,6 +543,10 @@ bool BaseCouplingScheme::measureConvergence()
       _convergenceWriter->writeData(convMeasure.logHeader(), convMeasure.measure->getNormResidual());
     }
 
+    double sendConvMeasure = convMeasure.measure->getNormResidual();
+    int totalConvValues = _convergenceMeasures.size();
+    getAcceleration()->addConvergenceData(sendConvMeasure,totalConvValues);
+
     if (not convMeasure.measure->isConvergence()) {
       allConverged = false;
       if (convMeasure.strict) {

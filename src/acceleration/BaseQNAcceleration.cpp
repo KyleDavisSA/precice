@@ -222,6 +222,7 @@ void BaseQNAcceleration::updateDifferenceMatrices(
       deltaR -= _oldResiduals;
 
       Eigen::VectorXd deltaXTilde = _values;
+      PRECICE_INFO("Magnitude values: " << utils::MasterSlave::l2norm(_values));
       deltaXTilde -= _oldXTilde;
 
       PRECICE_CHECK(not math::equals(utils::MasterSlave::l2norm(deltaR), 0.0), "Attempting to add a zero vector to the quasi-Newton V matrix. This means that the residual "
@@ -366,8 +367,27 @@ void BaseQNAcceleration::performAcceleration(
       _nbDropCols = 0;
     }
 
+    int AutoTune = 0;
+    if(AutoTune == 1){
+      if (tSteps == 0 && its == 2){
+        removeMatrixColumn(0);
+        _qrV.deleteColumn(0);
+        PRECICE_INFO("Removing the very first column");
+      }
+      if (its == 0 && tSteps > 1){
+        int k = _matrixCols[1] - 1;
+        removeMatrixColumn(k);
+        _qrV.deleteColumn(k);
+        PRECICE_INFO("Removing the first iteration of previous column");
+      }
+    }
     // apply the configured filter to the LS system
-    applyFilter();
+    if (its > 2 || tSteps != 0){
+      utils::Event  aF("applyFilter");
+      applyFilter();
+      aF.stop();
+    }
+    
 
     // revert scaling of V, in computeQNUpdate all data objects are unscaled.
     _preconditioner->revert(_matrixV);
@@ -454,10 +474,18 @@ void BaseQNAcceleration::applyFilter()
 
       removeMatrixColumn(delIndices[i]);
 
-      PRECICE_DEBUG(" Filter: removing column with index " << delIndices[i] << " in iteration " << its << " of time step: " << tSteps);
+      PRECICE_INFO(" Filter: removing column with index " << delIndices[i] << " in iteration " << its << " of time step: " << tSteps);
     }
     PRECICE_ASSERT(_matrixV.cols() == _qrV.cols(), _matrixV.cols(), _qrV.cols());
   }
+}
+
+void BaseQNAcceleration::addConvergenceData(
+    double &k,
+    int &h)
+{
+  PRECICE_INFO("   Residual value is: " << k);
+  PRECICE_INFO("   Total residuals to display: " << h);
 }
 
 void BaseQNAcceleration::concatenateCouplingData(

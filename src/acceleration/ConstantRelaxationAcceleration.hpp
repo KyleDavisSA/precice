@@ -27,6 +27,8 @@ public:
 
   virtual void performAcceleration(DataMap &cplData);
 
+  virtual void addConvergenceData(double &k, int &h);
+
   virtual void iterationsConverged(DataMap &cplData)
   {
   }

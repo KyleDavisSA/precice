@@ -18,6 +18,7 @@
 #include "utils/EigenHelperFunctions.hpp"
 #include "utils/MasterSlave.hpp"
 #include "utils/assertion.hpp"
+#include "utils/Event.hpp"
 
 using precice::cplscheme::PtrCouplingData;
 
@@ -752,7 +753,10 @@ void MVQNAcceleration::specializedIterationsConverged(
 
         // < RESTART >
         _nbRestarts++;
+        utils::Event  svd("restartIMVJ");
         restartIMVJ();
+        svd.stop();
+        
       }
 
       // only in imvj normal mode with efficient update:

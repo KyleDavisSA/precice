@@ -140,6 +140,8 @@ public:
     */
   virtual int getLSSystemCols() const;
 
+  virtual void addConvergenceData(double &k, int &h);
+
 protected:
   logging::Logger _log{"acceleration::BaseQNAcceleration"};
 

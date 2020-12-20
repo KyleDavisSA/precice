@@ -38,6 +38,8 @@ public:
 
   virtual void performAcceleration(DataMap &cpldata) = 0;
 
+  virtual void addConvergenceData(double &k, int &h) = 0;
+
   virtual void iterationsConverged(DataMap &cpldata) = 0;
 
   virtual void exportState(io::TXTWriter &writer) {}

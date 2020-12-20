@@ -75,6 +75,8 @@ private:
   //        furthermore it updates the inverse of the system jacobian
   virtual void computeQNUpdate(DataMap &cplData, Eigen::VectorXd &xUpdate);
 
+  //virtual void addConvergenceData(double &k, int &h);
+
   // @brief updates the V, W matrices (as well as the matrices for the secondary data)
   virtual void updateDifferenceMatrices(DataMap &cplData);
 

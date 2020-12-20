@@ -69,6 +69,8 @@ void BroydenAcceleration::updateDifferenceMatrices(
   BaseQNAcceleration::updateDifferenceMatrices(cplData);
 }
 
+
+
 void BroydenAcceleration::computeQNUpdate(Acceleration::DataMap &cplData, Eigen::VectorXd &xUpdate)
 {
   PRECICE_TRACE();

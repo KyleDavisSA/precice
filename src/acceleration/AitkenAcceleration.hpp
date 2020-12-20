@@ -33,6 +33,8 @@ public:
   virtual void iterationsConverged(
       DataMap &cpldata);
 
+  virtual void addConvergenceData(double &k, int &h);
+
 private:
   logging::Logger _log{"acceleration::AitkenAcceleration"};
 
