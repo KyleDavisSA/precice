@@ -367,15 +367,15 @@ void BaseQNAcceleration::performAcceleration(
       _nbDropCols = 0;
     }
 
-    int AutoTune = 0;
+    int AutoTune = 1;
     if(AutoTune == 1){
-      if (tSteps == 0 && its == 2){
-        removeMatrixColumn(0);
-        _qrV.deleteColumn(0);
+      if (tSteps == 0 && its == 3){
+        removeMatrixColumn(2);
+        _qrV.deleteColumn(2);
         PRECICE_INFO("Removing the very first column");
       }
       if (its == 0 && tSteps > 1){
-        int k = _matrixCols[1] - 1;
+        int k = _matrixCols[1];
         removeMatrixColumn(k);
         _qrV.deleteColumn(k);
         PRECICE_INFO("Removing the first iteration of previous column");
