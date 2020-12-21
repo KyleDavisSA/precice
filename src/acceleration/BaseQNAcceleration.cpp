@@ -204,6 +204,7 @@ void BaseQNAcceleration::updateDifferenceMatrices(
   //if (_firstIteration && (_firstTimeStep || (_matrixCols.size() < 2))) {
   if (_firstIteration && (_firstTimeStep || _forceInitialRelaxation)) {
     // do nothing: constant relaxation
+    PRECICE_INFO("Very first input value: " << utils::MasterSlave::l2norm(_values));
   } else {
     PRECICE_DEBUG("   Update Difference Matrices");
     if (not _firstIteration) {
@@ -236,6 +237,7 @@ void BaseQNAcceleration::updateDifferenceMatrices(
 
         utils::appendFront(_matrixV, deltaR);
         utils::appendFront(_matrixW, deltaXTilde);
+        utils::appendFront(_matrixS, _values);
 
         // insert column deltaR = _residuals - _oldResiduals at pos. 0 (front) into the
         // QR decomposition and update decomposition
@@ -248,6 +250,7 @@ void BaseQNAcceleration::updateDifferenceMatrices(
       } else {
         utils::shiftSetFirst(_matrixV, deltaR);
         utils::shiftSetFirst(_matrixW, deltaXTilde);
+        utils::shiftSetFirst(_matrixS, _values);
 
         // inserts column deltaR at pos. 0 to the QR decomposition and deletes the last column
         // the QR decomposition of V is updated
@@ -367,26 +370,55 @@ void BaseQNAcceleration::performAcceleration(
       _nbDropCols = 0;
     }
 
-    int AutoTune = 1;
+
+    int AutoTune = 0;
     if(AutoTune == 1){
       if (tSteps == 0 && its == 3){
         removeMatrixColumn(2);
         _qrV.deleteColumn(2);
         PRECICE_INFO("Removing the very first column");
       }
+      if (_timestepsReused > 1){
       if (its == 0 && tSteps > 1){
         int k = _matrixCols[1];
         removeMatrixColumn(k);
         _qrV.deleteColumn(k);
         PRECICE_INFO("Removing the first iteration of previous column");
       }
-    }
+      } else if (_timestepsReused == 0){
+        if(tSteps > 0 && its == 3){
+          removeMatrixColumn(2);
+          _qrV.deleteColumn(2);
+          PRECICE_INFO("Removing the very first column");
+        }
+      }
+    
     // apply the configured filter to the LS system
-    if (its > 2 || tSteps != 0){
+    if(_timestepsReused > 0){
+      if (its > 2 || (tSteps != 0 && its > 0)){
+        utils::Event  aF("applyFilter");
+        applyFilter();
+        aF.stop();
+      }
+    }else {
+      if (its > 2){
+        utils::Event  aF("applyFilter");
+        applyFilter();
+        aF.stop();
+      }
+    }
+
+    } else {
       utils::Event  aF("applyFilter");
       applyFilter();
       aF.stop();
     }
+
+    //for (int i = 0; i < _matrixS.cols(); i++){
+      //Eigen::VectorXd vDisp = _matrixS.col(i);
+      //PRECICE_INFO("Input values list: " << utils::MasterSlave::l2norm(vDisp));
+    //}
+    
     
 
     // revert scaling of V, in computeQNUpdate all data objects are unscaled.
@@ -633,6 +665,7 @@ void BaseQNAcceleration::removeMatrixColumn(
   PRECICE_ASSERT(_matrixV.cols() > 1);
   utils::removeColumnFromMatrix(_matrixV, columnIndex);
   utils::removeColumnFromMatrix(_matrixW, columnIndex);
+  utils::removeColumnFromMatrix(_matrixS, columnIndex);
 
   // Reduce column count
   std::deque<int>::iterator iter = _matrixCols.begin();

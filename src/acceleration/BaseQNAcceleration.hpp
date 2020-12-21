@@ -202,6 +202,8 @@ protected:
   /// @brief Stores x tilde deltas, where x tilde are values computed by solvers.
   Eigen::MatrixXd _matrixW;
 
+  Eigen::MatrixXd _matrixS;
+
   /// @brief Stores the current QR decomposition ov _matrixV, can be updated via deletion/insertion of columns
   impl::QRFactorization _qrV;
 
