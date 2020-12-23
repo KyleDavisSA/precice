@@ -194,6 +194,10 @@ void BaseQNAcceleration::updateDifferenceMatrices(
   _residuals = _values;
   _residuals -= _oldValues;
 
+  PRECICE_INFO("   Magnitude values: " << utils::MasterSlave::l2norm(_values));
+  PRECICE_INFO("   xOld data values: " << utils::MasterSlave::l2norm(_oldValues));
+  PRECICE_INFO("   Residuals in updateDifference: " << utils::MasterSlave::l2norm(_residuals));
+
   if (math::equals(utils::MasterSlave::l2norm(_residuals), 0.0)) {
     PRECICE_WARN("The coupling residual equals almost zero. There is maybe something wrong in your adapter. "
                  "Maybe you always write the same data or you call advance without "
@@ -202,9 +206,8 @@ void BaseQNAcceleration::updateDifferenceMatrices(
   }
 
   //if (_firstIteration && (_firstTimeStep || (_matrixCols.size() < 2))) {
-  if (_firstIteration && (_firstTimeStep || _forceInitialRelaxation)) {
+  if ((_firstIteration && (_firstTimeStep || _forceInitialRelaxation)) || (tSteps == 0 && its < 1)) {
     // do nothing: constant relaxation
-    PRECICE_INFO("Very first input value: " << utils::MasterSlave::l2norm(_values));
   } else {
     PRECICE_DEBUG("   Update Difference Matrices");
     if (not _firstIteration) {
@@ -221,10 +224,12 @@ void BaseQNAcceleration::updateDifferenceMatrices(
 
       Eigen::VectorXd deltaR = _residuals;
       deltaR -= _oldResiduals;
+      PRECICE_INFO("   Old Residuals in updateDifference: " << utils::MasterSlave::l2norm(_oldResiduals));
+      
 
       Eigen::VectorXd deltaXTilde = _values;
-      PRECICE_INFO("Magnitude values: " << utils::MasterSlave::l2norm(_values));
       deltaXTilde -= _oldXTilde;
+      PRECICE_INFO("   oldXTilde in updateDifference: " << utils::MasterSlave::l2norm(_oldXTilde));
 
       PRECICE_CHECK(not math::equals(utils::MasterSlave::l2norm(deltaR), 0.0), "Attempting to add a zero vector to the quasi-Newton V matrix. This means that the residual "
                                                                                "in two consecutive iterations is identical. There is probably something wrong in your adapter. "
@@ -373,6 +378,7 @@ void BaseQNAcceleration::performAcceleration(
   /**
    * ---------------- METHOD A filtering technique -----------------
    */
+  /*
     int AutoTune = 1;
     if(AutoTune == 1){
       if (tSteps == 0 && its == 3){
@@ -402,7 +408,7 @@ void BaseQNAcceleration::performAcceleration(
       //}
     
     // apply the configured filter to the LS system
-
+    /*
     if(_timestepsReused > 0){
       if (its > 2 || tSteps > 0 ){//(its > 2 || (tSteps != 0 && its > 0)){
         PRECICE_INFO("Apply filter for _timeStepsReused > 0");
@@ -424,6 +430,10 @@ void BaseQNAcceleration::performAcceleration(
       applyFilter();
       aF.stop();
     }
+    */
+    utils::Event  aF("applyFilter");
+    applyFilter();
+    aF.stop();
   
    //----------------- END METHOD A -------------------------
 
@@ -659,6 +669,7 @@ void BaseQNAcceleration::iterationsConverged(
 
   _matrixCols.push_front(0);
   _firstIteration = true;
+
 }
 
 /** ---------------------------------------------------------------------------------------------
