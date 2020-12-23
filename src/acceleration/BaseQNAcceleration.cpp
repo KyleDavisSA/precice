@@ -370,7 +370,9 @@ void BaseQNAcceleration::performAcceleration(
       _nbDropCols = 0;
     }
 
-
+  /**
+   * ---------------- METHOD A filtering technique -----------------
+   */
     int AutoTune = 1;
     if(AutoTune == 1){
       if (tSteps == 0 && its == 3){
@@ -400,6 +402,7 @@ void BaseQNAcceleration::performAcceleration(
       //}
     
     // apply the configured filter to the LS system
+
     if(_timestepsReused > 0){
       if (its > 2 || tSteps > 0 ){//(its > 2 || (tSteps != 0 && its > 0)){
         PRECICE_INFO("Apply filter for _timeStepsReused > 0");
@@ -421,6 +424,8 @@ void BaseQNAcceleration::performAcceleration(
       applyFilter();
       aF.stop();
     }
+  
+   //----------------- END METHOD A -------------------------
 
     for (int i = 0; i < _matrixV.cols(); i++){
       Eigen::VectorXd sDisp = _matrixS.col(i);
@@ -428,8 +433,6 @@ void BaseQNAcceleration::performAcceleration(
       PRECICE_INFO("Input values list: " << utils::MasterSlave::l2norm(sDisp) << " - with residual: " << utils::MasterSlave::l2norm(vDisp));
     }
     
-    
-
     // revert scaling of V, in computeQNUpdate all data objects are unscaled.
     _preconditioner->revert(_matrixV);
 
