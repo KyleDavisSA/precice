@@ -206,8 +206,9 @@ void BaseQNAcceleration::updateDifferenceMatrices(
   }
 
   //if (_firstIteration && (_firstTimeStep || (_matrixCols.size() < 2))) {
-  if ((_firstIteration && (_firstTimeStep || _forceInitialRelaxation)) || (tSteps == 0 && its < 1)) {
+  if ((_firstIteration && (_firstTimeStep || _forceInitialRelaxation)) || (tSteps == 0 && its < 2)) {
     // do nothing: constant relaxation
+
   } else {
     PRECICE_DEBUG("   Update Difference Matrices");
     if (not _firstIteration) {
@@ -319,13 +320,16 @@ void BaseQNAcceleration::performAcceleration(
    */
   updateDifferenceMatrices(cplData);
 
-  if (_firstIteration && (_firstTimeStep || _forceInitialRelaxation)) {
+  if ((_firstIteration && (_firstTimeStep || _forceInitialRelaxation)) || (tSteps == 0 && its < 2)) {
     PRECICE_DEBUG("   Performing underrelaxation");
     _oldXTilde    = _values;    // Store x tilde
     _oldResiduals = _residuals; // Store current residual
 
     // Perform constant relaxation
     // with residual: x_new = x_old + omega * res
+    if (its == 1) {
+      _initialRelaxation = 1.0;
+    }
     _residuals *= _initialRelaxation;
     _residuals += _oldValues;
     _values = _residuals;
