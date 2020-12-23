@@ -158,16 +158,18 @@ void QRFactorization::applyFilter(double singularityLimit, std::vector<int> &del
     int totalCol = _cols;
     int maxDeleted = 0;
     for (int k = totalCol-1; k > 0; k--) {
-      double Rnorm = utils::MasterSlave::l2norm(_R.col(k));
-      if (_R(k,k) < singularityLimit*Rnorm)
+      //double Rnorm = utils::MasterSlave::l2norm(_R.col(k));
+      double Vnorm = utils::MasterSlave::l2norm(V.col(k));
+      if (_R(k,k) < singularityLimit*Vnorm)
         maxDeleted++;
     }
     if (maxDeleted < 3){
     // starting with the most recent input/output information, i.e., the latest column
     // which is at position 0 in _matrixV (latest information is never filtered out!)
     for (int k = totalCol-1; k > 1; k--) {
-      double Rnorm = utils::MasterSlave::l2norm(_R.col(k));
-      if (_R(k,k) < singularityLimit*Rnorm){
+      //double Rnorm = utils::MasterSlave::l2norm(_R.col(k));
+      double Vnorm = utils::MasterSlave::l2norm(V.col(k));
+      if (_R(k,k) < singularityLimit*Vnorm){
         deleteColumn(k);
         delIndices.push_back(k);
         PRECICE_INFO("Column: " << k << " - is deleted from QR with QR3");
@@ -175,13 +177,11 @@ void QRFactorization::applyFilter(double singularityLimit, std::vector<int> &del
       }
     }
   } else {
-    PRECICE_INFO("Too many columns to delete. Calling QR2 from QR3 filter");
+    PRECICE_INFO("Too many columns to delete. Calling QR2 from QR3 filter to remove at most: " << maxDeleted);
     _Q.resize(0, 0);
     _R.resize(0, 0);
     _cols = 0;
     _rows = V.rows();
-    // starting with the most recent input/output information, i.e., the latest column
-    // which is at position 0 in _matrixV (latest information is never filtered out!)
     for (int k = 0; k < V.cols(); k++) {
       Eigen::VectorXd v = V.col(k);
       // this is the same as pushBack(v) as _cols grows within the insertion process

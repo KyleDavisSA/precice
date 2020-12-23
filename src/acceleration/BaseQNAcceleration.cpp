@@ -371,37 +371,45 @@ void BaseQNAcceleration::performAcceleration(
     }
 
 
-    int AutoTune = 0;
+    int AutoTune = 1;
     if(AutoTune == 1){
       if (tSteps == 0 && its == 3){
+        Eigen::VectorXd sDisp = _matrixS.col(2);
+        Eigen::VectorXd vDisp = _matrixV.col(2);
         removeMatrixColumn(2);
         _qrV.deleteColumn(2);
-        PRECICE_INFO("Removing the very first column");
+        PRECICE_INFO("Removing the very first column: " << utils::MasterSlave::l2norm(sDisp) << " - with residual: " << utils::MasterSlave::l2norm(vDisp));
       }
-      if (_timestepsReused > 1){
+      //if (_timestepsReused > 1){
+       /* 
       if (its == 0 && tSteps > 1){
         int k = _matrixCols[1];
+        Eigen::VectorXd sDisp = _matrixS.col(k);
+        Eigen::VectorXd vDisp = _matrixV.col(k);
         removeMatrixColumn(k);
         _qrV.deleteColumn(k);
-        PRECICE_INFO("Removing the first iteration of previous column");
+        PRECICE_INFO("Removing the first iteration of previous column: " << utils::MasterSlave::l2norm(sDisp)  << " - with residual: " << utils::MasterSlave::l2norm(vDisp));
       }
-      } else if (_timestepsReused == 0){
-        if(tSteps > 0 && its == 3){
-          removeMatrixColumn(2);
-          _qrV.deleteColumn(2);
-          PRECICE_INFO("Removing the very first column");
-        }
-      }
+      */
+      //} else if (_timestepsReused == 0){
+        //if(tSteps > 0 && its == 3){
+        //  removeMatrixColumn(2);
+        //  _qrV.deleteColumn(2);
+        //  PRECICE_INFO("Removing the very first column");
+        //}
+      //}
     
     // apply the configured filter to the LS system
     if(_timestepsReused > 0){
-      if (its > 2 || (tSteps != 0 && its > 0)){
+      if (its > 2 || tSteps > 0 ){//(its > 2 || (tSteps != 0 && its > 0)){
+        PRECICE_INFO("Apply filter for _timeStepsReused > 0");
         utils::Event  aF("applyFilter");
         applyFilter();
         aF.stop();
       }
     }else {
-      if (its > 2){
+      if (its > 2 || tSteps > 0){
+        PRECICE_INFO("Apply filter for _timeStepsReused = 0");
         utils::Event  aF("applyFilter");
         applyFilter();
         aF.stop();
@@ -414,10 +422,11 @@ void BaseQNAcceleration::performAcceleration(
       aF.stop();
     }
 
-    //for (int i = 0; i < _matrixS.cols(); i++){
-      //Eigen::VectorXd vDisp = _matrixS.col(i);
-      //PRECICE_INFO("Input values list: " << utils::MasterSlave::l2norm(vDisp));
-    //}
+    for (int i = 0; i < _matrixV.cols(); i++){
+      Eigen::VectorXd sDisp = _matrixS.col(i);
+      Eigen::VectorXd vDisp = _matrixV.col(i);
+      PRECICE_INFO("Input values list: " << utils::MasterSlave::l2norm(sDisp) << " - with residual: " << utils::MasterSlave::l2norm(vDisp));
+    }
     
     
 
