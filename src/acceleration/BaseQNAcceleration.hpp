@@ -274,6 +274,10 @@ protected:
 
   int its = 0, tSteps = 0;
 
+  int methodA = 0;
+  int methodB = 0;
+  int methodC = 0;
+
 private:
   /// @brief Concatenation of all coupling data involved in the QN system.
   Eigen::VectorXd _values;

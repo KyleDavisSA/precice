@@ -163,6 +163,7 @@ void QRFactorization::applyFilter(double singularityLimit, std::vector<int> &del
       if (_R(k,k) < singularityLimit*Vnorm)
         maxDeleted++;
     }
+    PRECICE_INFO("Max Deleted: " << maxDeleted);
     if (maxDeleted < 3){
     // starting with the most recent input/output information, i.e., the latest column
     // which is at position 0 in _matrixV (latest information is never filtered out!)
