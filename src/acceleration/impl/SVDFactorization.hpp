@@ -156,10 +156,11 @@ public:
     /** (5) truncation of SVD
       */
     _cols = _sigma.size();
+    _truncationEps = 0.0001;
 
     int waste = 0;
     for (int i = 0; i < (int) _sigma.size(); i++) {
-      if (_sigma(i) < (int) _sigma(0) * _truncationEps) {
+      if ((_sigma(i) < (int) _sigma(0) * _truncationEps) ){
         _cols = i;
         waste = _sigma.size() - i;
         break;
