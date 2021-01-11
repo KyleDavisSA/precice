@@ -191,8 +191,13 @@ void BaseQNAcceleration::updateDifferenceMatrices(
   PRECICE_TRACE();
 
   // Compute current residual: vertex-data - oldData
+  //PRECICE_INFO("_values: " << _values);
+  //PRECICE_INFO("_oldValues: " << _oldValues);
   _residuals = _values;
+  //PRECICE_INFO("_residuals: " << _residuals);
   _residuals -= _oldValues;
+  //PRECICE_INFO("_residuals: " << _residuals);
+  
 
   if (math::equals(utils::MasterSlave::l2norm(_residuals), 0.0)) {
     PRECICE_WARN("The coupling residual equals almost zero. There is maybe something wrong in your adapter. "
@@ -206,7 +211,7 @@ void BaseQNAcceleration::updateDifferenceMatrices(
     // do nothing: constant relaxation
     PRECICE_INFO("Very first input value: " << utils::MasterSlave::l2norm(_values));
   } else {
-    PRECICE_DEBUG("   Update Difference Matrices");
+    PRECICE_INFO("   Update Difference Matrices");
     if (not _firstIteration) {
       // Update matrices V, W with newest information
 
@@ -220,11 +225,15 @@ void BaseQNAcceleration::updateDifferenceMatrices(
             << "converge. Maybe the number of allowed columns (\"max-used-iterations\") should be limited.");
 
       Eigen::VectorXd deltaR = _residuals;
+      PRECICE_INFO("_oldResiduals: " << _oldResiduals);
       deltaR -= _oldResiduals;
 
       Eigen::VectorXd deltaXTilde = _values;
       PRECICE_INFO("Magnitude values: " << utils::MasterSlave::l2norm(_values));
       deltaXTilde -= _oldXTilde;
+
+      PRECICE_INFO("_oldXTilde: " << _oldXTilde);
+      PRECICE_INFO("deltaXTilde: " << deltaXTilde);
 
       PRECICE_CHECK(not math::equals(utils::MasterSlave::l2norm(deltaR), 0.0), "Attempting to add a zero vector to the quasi-Newton V matrix. This means that the residual "
                                                                                "in two consecutive iterations is identical. There is probably something wrong in your adapter. "
@@ -238,6 +247,9 @@ void BaseQNAcceleration::updateDifferenceMatrices(
         utils::appendFront(_matrixV, deltaR);
         utils::appendFront(_matrixW, deltaXTilde);
         utils::appendFront(_matrixS, _values);
+
+        PRECICE_INFO("MatrixV: " << _matrixV);
+        PRECICE_INFO("MatrixW: " << _matrixW);
 
         // insert column deltaR = _residuals - _oldResiduals at pos. 0 (front) into the
         // QR decomposition and update decomposition
@@ -266,6 +278,7 @@ void BaseQNAcceleration::updateDifferenceMatrices(
         _nbDropCols++;
       }
     }
+    
     _oldResiduals = _residuals; // Store residuals
     _oldXTilde    = _values;    // Store x_tilde
   }
@@ -315,19 +328,25 @@ void BaseQNAcceleration::performAcceleration(
   updateDifferenceMatrices(cplData);
 
   if (_firstIteration && (_firstTimeStep || _forceInitialRelaxation)) {
-    PRECICE_DEBUG("   Performing underrelaxation");
+    PRECICE_INFO("   Performing underrelaxation");
     _oldXTilde    = _values;    // Store x tilde
     _oldResiduals = _residuals; // Store current residual
 
     // Perform constant relaxation
     // with residual: x_new = x_old + omega * res
+    //PRECICE_INFO("   _values in under: " << _values);
+    //PRECICE_INFO("   oldvalues in under: " << _oldValues);
+    //PRECICE_INFO("   residuals in under: " << _residuals);
+
     _residuals *= _initialRelaxation;
     _residuals += _oldValues;
     _values = _residuals;
 
+    //PRECICE_INFO("   _values output in under: " << _values);
+
     computeUnderrelaxationSecondaryData(cplData);
   } else {
-    PRECICE_DEBUG("   Performing quasi-Newton Step");
+    PRECICE_INFO("   Performing quasi-Newton Step");
 
     // If the previous time step converged within one single iteration, nothing was added
     // to the LS system matrices and they need to be restored from the backup at time T-2
@@ -595,7 +614,11 @@ void BaseQNAcceleration::performAcceleration(
 
   // number of iterations (usually equals number of columns in LS-system)
   its++;
-  _firstIteration = false;
+  if(tSteps == 0 && its == 1){
+    _firstIteration = false;
+  } else {
+    _firstIteration = false;
+  }
 }
 
 void BaseQNAcceleration::applyFilter()

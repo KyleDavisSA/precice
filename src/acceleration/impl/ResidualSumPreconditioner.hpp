@@ -25,6 +25,8 @@ public:
 
   virtual void initialize(std::vector<size_t> &svs);
 
+  bool firstIter = true;
+
 private:
   /**
    * @brief Update the scaling after every FSI iteration.
