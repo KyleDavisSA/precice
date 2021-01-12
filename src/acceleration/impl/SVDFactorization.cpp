@@ -112,7 +112,7 @@ void SVDFactorization::reset(Eigen::VectorXd &resetCplData)
 
     }
 
-    vectorDifference = 10;
+    //vectorDifference = 10;
     PRECICE_INFO("vectorDifference: " << vectorDifference);
     if (vectorDifference > 5 || vectorDifference < 0.2){
       PRECICE_INFO("Resetting the SVD after the weights were freezed");

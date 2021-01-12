@@ -555,6 +555,7 @@ void MVQNAcceleration::restartIMVJ()
     int q = _svdJ.isSVDinitialized() ? 1 : 0;
 
     //q = 0;
+    /*
     PRECICE_INFO("Chunk size: " << _WtilChunk.size());
     int halfChunk = 9;
   
@@ -576,13 +577,14 @@ void MVQNAcceleration::restartIMVJ()
       _pseudoInverseChunkSave.erase(_pseudoInverseChunkSave.begin());
 
     }
+    */
 
     PRECICE_INFO("_WtilChunkSave.size(): " << _WtilChunkSave.size());
     
 
     // perform M-1 rank-1 updates of the truncated SVD-dec of the Jacobian
     //for (; q < (int) q+1; q++) {
-    for (; q < (int) halfChunk; q++) {
+    for (; q < (int) _WtilChunkSave.size(); q++) {
       // update SVD, i.e., PSI * SIGMA * PHI^T <-- PSI * SIGMA * PHI^T + Wtil^q * Z^q
       _svdJ.update(_WtilChunk[q], _pseudoInverseChunk[q].transpose());
       //  used_storage += 2*_WtilChunk.size();
@@ -619,11 +621,11 @@ void MVQNAcceleration::restartIMVJ()
     _preconditioner->apply(_pseudoInverseChunk.front(), true);
     // |===================                             ==|
 
-    for (q = 0; q < _WtilChunkSave.size() ; q++) {
-      _WtilChunk.push_back(_WtilChunkSave[q]);
-      _pseudoInverseChunk.push_back(_pseudoInverseChunkSave[q]);
-      PRECICE_INFO("_WtilChunk.size() on push back: " << _WtilChunk.size());
-    }
+    //for (q = 0; q < _WtilChunkSave.size() ; q++) {
+    //  _WtilChunk.push_back(_WtilChunkSave[q]);
+    //  _pseudoInverseChunk.push_back(_pseudoInverseChunkSave[q]);
+    //  PRECICE_INFO("_WtilChunk.size() on push back: " << _WtilChunk.size());
+    //}
 
     PRECICE_INFO("_WtilChunk.size() on exit: " << _WtilChunk.size());
 
@@ -917,7 +919,7 @@ void MVQNAcceleration::specializedIterationsConverged(
       /**
        *  Restart the IMVJ according to restart type
        */
-      if ((int) _WtilChunk.size() >= 2*_chunkSize + 1) {
+      if ((int) _WtilChunk.size() >= _chunkSize + 1) {
         int offset = 0;
         int totalSize = 0;
         for (int id : _dataIDs) {
@@ -938,9 +940,9 @@ void MVQNAcceleration::specializedIterationsConverged(
         PRECICE_INFO(" _nbRestarts: " << _nbRestarts);
         PRECICE_INFO(" Rank of SVD: " << _svdJ.rank());
         //if(_svdJ.rank() > 50){
-        //  _svdJ.reset(resetCplData);
-        //  _preconditioner->update(false, resetCplData, _residuals);
-        //  _preconditioner->freezeWeights();   
+        _svdJ.reset(resetCplData);
+        _preconditioner->update(false, resetCplData, _residuals);
+        _preconditioner->freezeWeights();   
         //}
         utils::Event  svd("restartIMVJ");
         restartIMVJ();
