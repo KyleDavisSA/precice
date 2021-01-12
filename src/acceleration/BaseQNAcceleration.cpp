@@ -225,15 +225,15 @@ void BaseQNAcceleration::updateDifferenceMatrices(
             << "converge. Maybe the number of allowed columns (\"max-used-iterations\") should be limited.");
 
       Eigen::VectorXd deltaR = _residuals;
-      PRECICE_INFO("_oldResiduals: " << _oldResiduals);
+      //PRECICE_INFO("_oldResiduals: " << _oldResiduals);
       deltaR -= _oldResiduals;
 
       Eigen::VectorXd deltaXTilde = _values;
       PRECICE_INFO("Magnitude values: " << utils::MasterSlave::l2norm(_values));
       deltaXTilde -= _oldXTilde;
 
-      PRECICE_INFO("_oldXTilde: " << _oldXTilde);
-      PRECICE_INFO("deltaXTilde: " << deltaXTilde);
+      //PRECICE_INFO("_oldXTilde: " << _oldXTilde);
+      //PRECICE_INFO("deltaXTilde: " << deltaXTilde);
 
       PRECICE_CHECK(not math::equals(utils::MasterSlave::l2norm(deltaR), 0.0), "Attempting to add a zero vector to the quasi-Newton V matrix. This means that the residual "
                                                                                "in two consecutive iterations is identical. There is probably something wrong in your adapter. "
@@ -248,8 +248,8 @@ void BaseQNAcceleration::updateDifferenceMatrices(
         utils::appendFront(_matrixW, deltaXTilde);
         utils::appendFront(_matrixS, _values);
 
-        PRECICE_INFO("MatrixV: " << _matrixV);
-        PRECICE_INFO("MatrixW: " << _matrixW);
+        //PRECICE_INFO("MatrixV: " << _matrixV);
+        //PRECICE_INFO("MatrixW: " << _matrixW);
 
         // insert column deltaR = _residuals - _oldResiduals at pos. 0 (front) into the
         // QR decomposition and update decomposition
