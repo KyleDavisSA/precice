@@ -61,6 +61,7 @@ void ResidualSumPreconditioner::_update_(bool                   timestepComplete
         _invWeights[i + offset] = _residualSum[k];
       }
       offset += _subVectorSizes[k];
+      PRECICE_INFO("Res Sum weights: " << 1 / _residualSum[k]);
     }
 
     _requireNewQR = true;

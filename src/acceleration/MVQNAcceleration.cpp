@@ -554,7 +554,7 @@ void MVQNAcceleration::restartIMVJ()
     // truncated SVD, i.e., Wtil^0 = \phi, Z^0 = S\psi^T, this should not be added to the SVD.
     int q = _svdJ.isSVDinitialized() ? 1 : 0;
 
-    //q = 0;
+    q = 1;
     /*
     PRECICE_INFO("Chunk size: " << _WtilChunk.size());
     int halfChunk = 9;
@@ -580,7 +580,6 @@ void MVQNAcceleration::restartIMVJ()
     */
 
     PRECICE_INFO("_WtilChunkSave.size(): " << _WtilChunkSave.size());
-    
 
     // perform M-1 rank-1 updates of the truncated SVD-dec of the Jacobian
     //for (; q < (int) q+1; q++) {
@@ -940,9 +939,10 @@ void MVQNAcceleration::specializedIterationsConverged(
         PRECICE_INFO(" _nbRestarts: " << _nbRestarts);
         PRECICE_INFO(" Rank of SVD: " << _svdJ.rank());
         //if(_svdJ.rank() > 50){
-        _svdJ.reset(resetCplData);
-        _preconditioner->update(false, resetCplData, _residuals);
-        _preconditioner->freezeWeights();   
+        //_svdJ.reset(resetCplData);
+        //_preconditioner->update(false, resetCplData, _residuals);
+        //_preconditioner->freezeWeights();   
+        //}
         //}
         utils::Event  svd("restartIMVJ");
         restartIMVJ();
