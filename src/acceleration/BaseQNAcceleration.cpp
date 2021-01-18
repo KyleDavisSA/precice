@@ -372,16 +372,23 @@ void BaseQNAcceleration::performAcceleration(
      * The preconditioner is only applied to the matrix V and the columns that are inserted into the
      * QR-decomposition of V.
      */
-
+    //if (its % 2 == 0){
     _preconditioner->update(false, _values, _residuals);
-    // apply scaling to V, V' := P * V (only needed to reset the QR-dec of V)
-    _preconditioner->apply(_matrixV);
+      // apply scaling to V, V' := P * V (only needed to reset the QR-dec of V)
+    //}
+      _preconditioner->apply(_matrixV);
+    
 
     if (_preconditioner->requireNewQR()) {
       if (not(_filter == Acceleration::QR2FILTER)) { //for QR2 filter, there is no need to do this twice
+        //if (its == 0){
+        utils::Event  preReset("preconditionerResetQR");
         _qrV.reset(_matrixV, getLSSystemRows());
+        preReset.stop();
+        //}
+        _preconditioner->newQRfulfilled();
       }
-      _preconditioner->newQRfulfilled();
+      
     }
 
     if (_firstIteration) {
@@ -389,7 +396,7 @@ void BaseQNAcceleration::performAcceleration(
       _nbDropCols = 0;
     }
 
-    methodA = 1;
+    methodA = 0;
     methodB = 0;
     methodC = 0;
     
@@ -427,7 +434,7 @@ void BaseQNAcceleration::performAcceleration(
     // apply the configured filter to the LS system
 
     if(_timestepsReused > 0){
-      if (its > 2 || tSteps > 0 ){//(its > 2 || (tSteps != 0 && its > 0)){
+      if (its > 4 || tSteps > 0 ){//(its > 2 || (tSteps != 0 && its > 0)){
         PRECICE_INFO("Apply filter for _timeStepsReused > 0");
         utils::Event  aF("applyFilter");
         applyFilter();
@@ -535,9 +542,11 @@ void BaseQNAcceleration::performAcceleration(
     }
 
     } else {
-      utils::Event  aF("applyFilter");
-      applyFilter();
-      aF.stop();
+      //if (its % 2 == 0){
+        utils::Event  aF("applyFilter");
+        applyFilter();
+        aF.stop();
+      //}
     }
   
    //----------------- END METHOD A -------------------------
@@ -638,6 +647,7 @@ void BaseQNAcceleration::applyFilter()
       removeMatrixColumn(delIndices[i]);
 
       PRECICE_INFO(" Filter: removing column with index " << delIndices[i] << " in iteration " << its << " of time step: " << tSteps);
+      PRECICE_INFO(" Filter: removing column with index " << _matrixV.cols() << " in iteration " << _qrV.cols());
     }
     PRECICE_ASSERT(_matrixV.cols() == _qrV.cols(), _matrixV.cols(), _qrV.cols());
   }

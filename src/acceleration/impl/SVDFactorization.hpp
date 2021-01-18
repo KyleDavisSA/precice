@@ -79,6 +79,13 @@ public:
       _sigma = Vector::Zero(0);
     }
 
+    //if (_psi.cols() > 50){
+    //  PRECICE_INFO("Initial truncation of SVD after 50 columns");
+    //  _psi.conservativeResize(_rows, 20);
+    //  _phi.conservativeResize(_rows, 20);
+    // _sigma.conservativeResize(20);
+    //}
+
     /** (1): compute orthogonal basis P of (I-\psi\psi^T)A
       */
     Matrix Atil(_psi.cols(), A.cols()); // Atil is of size (K_bar x m)
@@ -155,22 +162,24 @@ public:
 
     /** (5) truncation of SVD
       */
-    _cols = _sigma.size();
+    _cols = _sigma.size() - 1;
 
     int waste = 0;
     for (int i = 0; i < (int) _sigma.size(); i++) {
-      if (_sigma(i) < (int) _sigma(0) * _truncationEps) {
+      if ((_sigma(i) < (int) _sigma(0) * _truncationEps) || i > 40) {
         _cols = i;
         waste = _sigma.size() - i;
         break;
       }
     }
+    double sigmaValue = _sigma(_cols)/_sigma(0);
     _waste += waste;
 
     _psi.conservativeResize(_rows, _cols);
     _phi.conservativeResize(_rows, _cols);
     _sigma.conservativeResize(_cols);
-    PRECICE_DEBUG("SVD factorization of Jacobian is truncated to " << _cols << " DOFs. Cut off " << waste << " DOFs");
+    PRECICE_INFO("Rows and columns: " << _psi.rows() << ", " << _psi.cols() << ", " << _phi.rows() << ", " << _phi.cols() << ", " << _sigma.rows() << ", " << _sigma.cols());
+    PRECICE_INFO("SVD factorization of Jacobian is truncated to " << _cols << " DOFs. Cut off " << waste << " DOFs " << sigmaValue);
 
     _initialSVD = true;
   }

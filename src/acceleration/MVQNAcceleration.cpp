@@ -58,7 +58,7 @@ MVQNAcceleration::MVQNAcceleration(
       _imvjRestart(false),
       _chunkSize(chunkSize),
       _RSLSreusedTimesteps(RSLSreusedTimesteps),
-      _usedColumnsPerTstep(5),
+      _usedColumnsPerTstep(20),
       _nbRestarts(0),
       //_info2(),
       _avgRank(0)
@@ -504,6 +504,24 @@ void MVQNAcceleration::restartIMVJ()
 
     // we need to compute the updated SVD of the scaled Jacobian matrix
     // |= APPLY PRECONDITIONING  J_prev = Wtil^q, Z^q  ===|
+    std::vector<Eigen::MatrixXd> _WtilChunkSave;
+    std::vector<Eigen::MatrixXd> _pseudoInverseChunkSave;
+
+    bool partialSVDUpdate = false;
+
+    //int halfChunk = _WtilChunk.size();
+    //if(partialSVDUpdate){
+
+    int halfChunk = (_WtilChunk.size()/2) + 1;
+    //}
+
+    //int halfChunk = (_WtilChunk.size()/2) + 1;
+
+    for(int i = halfChunk; i < _WtilChunk.size(); i++){
+      _WtilChunkSave.push_back(_WtilChunk[i]);
+      _pseudoInverseChunkSave.push_back(_pseudoInverseChunk[i]);
+    }
+    
     for (int i = 0; i < (int) _WtilChunk.size(); i++) {
       _preconditioner->apply(_WtilChunk[i]);
       _preconditioner->revert(_pseudoInverseChunk[i], true);
@@ -516,9 +534,12 @@ void MVQNAcceleration::restartIMVJ()
     // otherwise, the first element of each container holds the decomposition of the current
     // truncated SVD, i.e., Wtil^0 = \phi, Z^0 = S\psi^T, this should not be added to the SVD.
     int q = _svdJ.isSVDinitialized() ? 1 : 0;
+    //q = 1;
+
 
     // perform M-1 rank-1 updates of the truncated SVD-dec of the Jacobian
-    for (; q < (int) _WtilChunk.size(); q++) {
+    //for (; q < (int) _WtilChunk.size(); q++) {
+    for (; q < (int) halfChunk; q++) {
       // update SVD, i.e., PSI * SIGMA * PHI^T <-- PSI * SIGMA * PHI^T + Wtil^q * Z^q
       _svdJ.update(_WtilChunk[q], _pseudoInverseChunk[q].transpose());
       //  used_storage += 2*_WtilChunk.size();
@@ -555,7 +576,16 @@ void MVQNAcceleration::restartIMVJ()
     _preconditioner->apply(_pseudoInverseChunk.front(), true);
     // |===================                             ==|
 
-    PRECICE_DEBUG("MVJ-RESTART, mode=SVD. Rank of truncated SVD of Jacobian " << rankAfter << ", new modes: " << rankAfter - rankBefore << ", truncated modes: " << waste << " avg rank: " << _avgRank / _nbRestarts);
+    for(int i = 0; i < _WtilChunkSave.size(); i++){
+      PRECICE_INFO("Adding previous Wtil to chunk");
+      _WtilChunk.push_back(_WtilChunkSave[i]);
+      _pseudoInverseChunk.push_back(_pseudoInverseChunkSave[i]);
+    }
+    
+    _WtilChunkSave.clear();
+    _pseudoInverseChunkSave.clear();
+
+    PRECICE_INFO("MVJ-RESTART, mode=SVD. Rank of truncated SVD of Jacobian " << rankAfter << ", new modes: " << rankAfter - rankBefore << ", truncated modes: " << waste << " avg rank: " << _avgRank / _nbRestarts);
     //double percentage = 100.0*used_storage/(double)theoreticalJ_storage;
     if (utils::MasterSlave::isMaster() || (not utils::MasterSlave::isMaster() && not utils::MasterSlave::isSlave()))
       _infostringstream << " - MVJ-RESTART " << _nbRestarts << ", mode= SVD -\n  new modes: " << rankAfter - rankBefore << "\n  rank svd: " << rankAfter << "\n  avg rank: " << _avgRank / _nbRestarts << "\n  truncated modes: " << waste << "\n"
@@ -624,6 +654,8 @@ void MVQNAcceleration::restartIMVJ()
       // store factorization of least-squares initial guess for Jacobian
       _WtilChunk.push_back(_matrixW_RSLS);
       _pseudoInverseChunk.push_back(pseudoInverse);
+      PRECICE_INFO("Rows and Columns: " << _matrixW_RSLS.rows() << ", " << _matrixW_RSLS.cols());
+      PRECICE_INFO("Rows and Columns: " << pseudoInverse.rows() << ", " << pseudoInverse.cols());
 
       // |= REVERT PRECONDITIONING  J_prev = Wtil^0, Z^0  ==|
       _preconditioner->revert(_WtilChunk.front());
@@ -641,8 +673,30 @@ void MVQNAcceleration::restartIMVJ()
     //            ------------ RESTART ZERO ------------
   } else if (_imvjRestartType == MVQNAcceleration::RS_ZERO) {
     // drop all stored Wtil^q, Z^q matrices
+    PRECICE_INFO("Restart Zero");
+
+    //_WtilChunk.clear();
+    //_pseudoInverseChunk.clear();
+
+    std::vector<Eigen::MatrixXd> _WtilChunkSave;
+    std::vector<Eigen::MatrixXd> _pseudoInverseChunkSave;
+
+    for(int i = 1; i < _WtilChunk.size(); i++){
+      _WtilChunkSave.push_back(_WtilChunk[i]);
+      _pseudoInverseChunkSave.push_back(_pseudoInverseChunk[i]);
+    }
+
     _WtilChunk.clear();
     _pseudoInverseChunk.clear();
+
+    for(int i = 0; i < _WtilChunkSave.size(); i++){
+      PRECICE_INFO("Adding previous Wtil to chunk");
+      _WtilChunk.push_back(_WtilChunkSave[i]);
+      _pseudoInverseChunk.push_back(_pseudoInverseChunkSave[i]);
+    }
+    
+    _WtilChunkSave.clear();
+    _pseudoInverseChunkSave.clear();
 
     PRECICE_DEBUG("MVJ-RESTART, mode=Zero");
 
@@ -743,14 +797,45 @@ void MVQNAcceleration::specializedIterationsConverged(
 
       // push back unscaled pseudo Inverse, Wtil is also unscaled.
       // all objects in Wtil chunk and Z chunk are NOT PRECONDITIONED
+      
+      /*int chunkSlideLength = 4;
+      std::vector<Eigen::MatrixXd> _WtilChunkSave = _WtilChunk;
+      std::vector<Eigen::MatrixXd> _pseudoInverseChunkSave = _pseudoInverseChunk;
+      if (_WtilChunk.size() == chunkSlideLength){
+        _WtilChunk.clear();
+        _pseudoInverseChunk.clear();
+        for (int i = 0; i < chunkSlideLength - 1; i++){
+          //_WtilChunk[i] = _WtilChunk[i+1];
+          //_pseudoInverseChunk[i] = _pseudoInverseChunk[i+1];
+          _WtilChunk.push_back(_WtilChunkSave[i+1]);
+          _pseudoInverseChunk.push_back(_pseudoInverseChunkSave[i+1]);
+        }
+        //_WtilChunk[chunkSlideLength - 1] = _Wtil;
+        //_pseudoInverseChunk[chunkSlideLength - 1] = Z;
+        //_WtilChunk.pop_front();
+        //_pseudoInverseChunk.pop_front();
+        _WtilChunk.push_back(_Wtil);
+        _pseudoInverseChunk.push_back(Z);
+
+      } else {
+        */
       _WtilChunk.push_back(_Wtil);
       _pseudoInverseChunk.push_back(Z);
+      //}
+      
+      PRECICE_INFO("Chunk size: " << _WtilChunk.size());
 
       /**
        *  Restart the IMVJ according to restart type
        */
-      if ((int) _WtilChunk.size() >= _chunkSize + 1) {
+      int _chunkSizeUsed = _chunkSize;
+      //if (_nbRestarts == 0)
+      //  _chunkSizeUsed *= 2;
 
+      if ((int) _WtilChunk.size() >= 2*_chunkSizeUsed + 1) {
+        //if (_nbRestarts == 13){
+        //  _svdJ.reset();
+        //}
         // < RESTART >
         _nbRestarts++;
         utils::Event  svd("restartIMVJ");

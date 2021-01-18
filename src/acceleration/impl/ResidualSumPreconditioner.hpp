@@ -27,6 +27,9 @@ public:
 
   bool firstIter = true;
 
+  double maxWeight = 0;
+  double minWeight = 1000000000;
+
 private:
   /**
    * @brief Update the scaling after every FSI iteration.

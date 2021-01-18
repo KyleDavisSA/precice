@@ -62,6 +62,7 @@ void SVDFactorization::revertPreconditioner()
 
 void SVDFactorization::reset()
 {
+  PRECICE_INFO("SVD Reset");
   _psi.resize(0, 0);
   _phi.resize(0, 0);
   _sigma.resize(0);

@@ -41,6 +41,7 @@ void ValuePreconditioner::_update_(bool                   timestepComplete,
         _invWeights[i + offset] = norms[k];
       }
       offset += _subVectorSizes[k];
+      PRECICE_INFO("Norm of weights: " << 1.0 / norms[k]);
     }
 
     _requireNewQR  = true;

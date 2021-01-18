@@ -95,9 +95,16 @@ void ResidualSumPreconditioner::_update_(bool                   timestepComplete
       normWeights[k] = 1 / _residualSum[k];
       PRECICE_INFO("Norm of weights: " << normWeights[k]);
       offset += _subVectorSizes[k];
+      if (k == 0){
+        if (normWeights[k] > maxWeight)
+          maxWeight = normWeights[k];
+        if (normWeights[k] < minWeight && normWeights[k] > 1000)
+          minWeight = normWeights[k];
+      }
+      PRECICE_INFO("Norm of weights: Min " << minWeight << " and Max: " << maxWeight);
     }
     
-    PRECICE_INFO("Norm of weights: " << utils::MasterSlave::l2norm(normWeights));
+    //PRECICE_INFO("Norm of weights: " << utils::MasterSlave::l2norm(normWeights));
 
     _requireNewQR = true;
     //}
