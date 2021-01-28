@@ -30,6 +30,9 @@ public:
   double maxWeight = 0;
   double minWeight = 1000000000;
 
+  int tStepPrecon = 1;
+  Eigen::VectorXd normWeights;
+
 private:
   /**
    * @brief Update the scaling after every FSI iteration.

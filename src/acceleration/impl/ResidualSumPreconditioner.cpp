@@ -85,21 +85,25 @@ void ResidualSumPreconditioner::_update_(bool                   timestepComplete
     }
 
     offset = 0;
-    Eigen::VectorXd normWeights;
     normWeights.resize(_subVectorSizes.size());
     for (size_t k = 0; k < _subVectorSizes.size(); k++) {
-      for (size_t i = 0; i < _subVectorSizes[k]; i++) {
-        _weights[i + offset]    = 1 / _residualSum[k];
-        _invWeights[i + offset] = _residualSum[k];
-      }
+      //if (tStepPrecon < 7 || (tStepPrecon == 201) || (tStepPrecon == 240) || (tStepPrecon == 261) || (tStepPrecon == 281)){
+      if (tStepPrecon < 2 ){
+        for (size_t i = 0; i < _subVectorSizes[k]; i++) {
+          _weights[i + offset]    = 1 / _residualSum[k];
+          _invWeights[i + offset] = _residualSum[k];
+        }
+        //_requireNewQR = true;
+      } 
       normWeights[k] = 1 / _residualSum[k];
-      PRECICE_INFO("Norm of weights: " << normWeights[k]);
+      PRECICE_INFO("Actual Norm of weights: " << _weights[1 + offset]);
+      PRECICE_INFO("Predicted Norm of weights: " << normWeights[k]);
       offset += _subVectorSizes[k];
       if (k == 0){
-        if (normWeights[k] > maxWeight)
-          maxWeight = normWeights[k];
-        if (normWeights[k] < minWeight && normWeights[k] > 1000)
-          minWeight = normWeights[k];
+        //if (normWeights[k] > maxWeight)
+          //maxWeight = normWeights[k];
+        //if (normWeights[k] < minWeight && normWeights[k] > 1)
+          //minWeight = normWeights[k];
       }
       PRECICE_INFO("Norm of weights: Min " << minWeight << " and Max: " << maxWeight);
     }
@@ -107,9 +111,50 @@ void ResidualSumPreconditioner::_update_(bool                   timestepComplete
     //PRECICE_INFO("Norm of weights: " << utils::MasterSlave::l2norm(normWeights));
 
     _requireNewQR = true;
+    //_requireNewQR = false;
     //}
   }else{
 
+    double rationOne = maxWeight/minWeight;
+    double rationTwo = (1 / _residualSum[0])/(1 / _residualSum[1]);
+
+    if(tStepPrecon < 2){
+      maxWeight = 1 / _residualSum[0];
+      minWeight = 1 / _residualSum[1];
+    }
+    if(((maxWeight/(1 / _residualSum[0])) > 10 || (maxWeight/(1 / _residualSum[0])) < 0.1) && (tStepPrecon > 2)){
+    //if(((rationOne/rationTwo < 0.1) || (rationOne/rationTwo > 10)) && (tStepPrecon > 7)){
+      PRECICE_INFO("Updated weights MAX during runtime. Will need to reset SVD with ration: " << rationOne/rationTwo);
+      
+      int offset = 0;
+      //for (size_t k = 0; k < _subVectorSizes.size(); k++) {
+        for (size_t i = 0; i < _subVectorSizes[0]; i++) {
+          _weights[i + offset]    = 1 / _residualSum[0];
+          _invWeights[i + offset] = _residualSum[0];
+        }
+        //offset += _subVectorSizes[k];
+      //}
+      
+      maxWeight = 1 / _residualSum[0];
+      _updatedWeights = true;
+    }
+    if(((minWeight/(1 / _residualSum[1])) > 10 || (minWeight/(1 / _residualSum[1])) < 0.1) && (tStepPrecon > 2)){
+      PRECICE_INFO("Updated weights MIN during runtime. Will need to reset SVD with ration: " << rationOne/rationTwo);
+      
+      int offset = 0;
+      //for (size_t k = 0; k < _subVectorSizes.size(); k++) {
+        offset += _subVectorSizes[0];
+        for (size_t i = 0; i < _subVectorSizes[1]; i++) {
+          _weights[i + offset]    = 1 / _residualSum[1];
+          _invWeights[i + offset] = _residualSum[1];
+        }
+      //}
+      
+      minWeight = 1 / _residualSum[1];
+      _updatedWeights = true;
+    }
+
+    tStepPrecon++;
     for (size_t k = 0; k < _subVectorSizes.size(); k++) {
       _residualSum[k] = 0.0;
     }

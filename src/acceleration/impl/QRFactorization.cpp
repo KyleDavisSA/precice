@@ -163,12 +163,13 @@ void QRFactorization::applyFilter(double singularityLimit, std::vector<int> &del
     for (int k = totalCol-1; k > 0; k--) {
       //double Rnorm = utils::MasterSlave::l2norm(_R.col(k));
       double Vnorm = utils::MasterSlave::l2norm(V.col(k));
-      if (_R(k,k) < singularityLimit*Vnorm){
+      if (std::fabs(_R(k,k)) < singularityLimit*Vnorm){
+        double singValue = _R(k,k)/Vnorm;
         deleteColumn(k);
         delIndices.push_back(k);
         PRECICE_INFO("Column: " << k << " - is deleted from QR with QR3");
         PRECICE_INFO("Total Columns: " << V.cols());
-        PRECICE_INFO("Total R Columns: " << _R.cols());
+        PRECICE_INFO("Total R Columns: " << singValue);
         maxDeleted++;
       }
       if (maxDeleted > 2){

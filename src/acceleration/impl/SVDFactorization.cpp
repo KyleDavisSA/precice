@@ -299,6 +299,11 @@ int SVDFactorization::rank()
   return _cols;
 }
 
+double SVDFactorization::sigmaValue()
+{
+  return _sigmaValue;
+}
+
 } // namespace impl
 } // namespace acceleration
 } // namespace precice

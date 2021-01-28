@@ -166,20 +166,21 @@ public:
 
     int waste = 0;
     for (int i = 0; i < (int) _sigma.size(); i++) {
-      if ((_sigma(i) < (int) _sigma(0) * _truncationEps) || i > 40) {
+      if ((_sigma(i) < (int) _sigma(0) * _truncationEps) || (i > 800)) {
         _cols = i;
         waste = _sigma.size() - i;
         break;
       }
     }
-    double sigmaValue = _sigma(_cols)/_sigma(0);
+
+    _sigmaValue = _sigma(_cols)/_sigma(0);
     _waste += waste;
 
     _psi.conservativeResize(_rows, _cols);
     _phi.conservativeResize(_rows, _cols);
     _sigma.conservativeResize(_cols);
     PRECICE_INFO("Rows and columns: " << _psi.rows() << ", " << _psi.cols() << ", " << _phi.rows() << ", " << _phi.cols() << ", " << _sigma.rows() << ", " << _sigma.cols());
-    PRECICE_INFO("SVD factorization of Jacobian is truncated to " << _cols << " DOFs. Cut off " << waste << " DOFs " << sigmaValue);
+    PRECICE_INFO("SVD factorization of Jacobian is truncated to " << _cols << " DOFs. Cut off " << waste << " DOFs " << _sigmaValue);
 
     _initialSVD = true;
   }
@@ -218,6 +219,8 @@ public:
 
   /// @brief: returns the rank of the truncated SVD factorization
   int rank();
+
+  double sigmaValue();
 
   /// @brief: returns the total number of truncated modes since last call to this method
   int getWaste();
@@ -279,6 +282,8 @@ private:
 
   /// Number of columns, i.e., rank of the truncated svd
   int _cols = 0;
+
+  double _sigmaValue = 0.00001;
 
   /// Number of global rows, i.e., sum of _rows for all procs
   int _globalRows = 0;

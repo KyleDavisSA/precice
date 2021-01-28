@@ -372,19 +372,25 @@ void BaseQNAcceleration::performAcceleration(
      * The preconditioner is only applied to the matrix V and the columns that are inserted into the
      * QR-decomposition of V.
      */
-    //if (its % 2 == 0){
+    //if (tSteps < 10){
     _preconditioner->update(false, _values, _residuals);
       // apply scaling to V, V' := P * V (only needed to reset the QR-dec of V)
     //}
-      _preconditioner->apply(_matrixV);
+    //if (tSteps == 285){
+    //  _preconditioner->update(false, _values, _residuals);
+      // apply scaling to V, V' := P * V (only needed to reset the QR-dec of V)
+    //}
+
+    _preconditioner->apply(_matrixV);
     
 
     if (_preconditioner->requireNewQR()) {
       if (not(_filter == Acceleration::QR2FILTER)) { //for QR2 filter, there is no need to do this twice
-        //if (its == 0){
-        utils::Event  preReset("preconditionerResetQR");
-        _qrV.reset(_matrixV, getLSSystemRows());
-        preReset.stop();
+        //if (tSteps < 10){
+          PRECICE_INFO("Resetting the preconditioner: " << _preconditioner->requireNewQR());
+          utils::Event  preReset("preconditionerResetQR");
+          _qrV.reset(_matrixV, getLSSystemRows());
+          preReset.stop();
         //}
         _preconditioner->newQRfulfilled();
       }
@@ -396,9 +402,20 @@ void BaseQNAcceleration::performAcceleration(
       _nbDropCols = 0;
     }
 
-    methodA = 0;
+    methodA = 1;
     methodB = 0;
     methodC = 0;
+
+   /* if (its == 0 && tSteps > 1){
+      int prevMatCols = _matrixCols[1];
+      if (prevMatCols > 5){
+        for (int i = prevMatCols + 1; i > 6; i--){
+          removeMatrixColumn(i);
+          _qrV.deleteColumn(i);
+        }
+      }
+    }
+    */
     
 
   /**
@@ -432,9 +449,11 @@ void BaseQNAcceleration::performAcceleration(
       //}
     
     // apply the configured filter to the LS system
+    bool isFreezed = _preconditioner->isConst();
 
     if(_timestepsReused > 0){
-      if (its > 4 || tSteps > 0 ){//(its > 2 || (tSteps != 0 && its > 0)){
+      if (its > 2 || (tSteps > 0)){//(its > 2 || (tSteps != 0 && its > 0)){
+      //if (its > 2 || tSteps > 0){
         PRECICE_INFO("Apply filter for _timeStepsReused > 0");
         utils::Event  aF("applyFilter");
         applyFilter();
@@ -717,6 +736,7 @@ void BaseQNAcceleration::iterationsConverged(
 
   its = 0;
   tSteps++;
+
 
   // the most recent differences for the V, W matrices have not been added so far
   // this has to be done in iterations converged, as PP won't be called any more if

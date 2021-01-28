@@ -113,6 +113,7 @@ private:
     int                   precond_nbNonConstTSteps   = -1;
     double                singularityLimit           = 0;
     double                imvjRSSVD_truncationEps    = 0;
+    int                   imvjRSSVD_truncationCols   = 0;
     bool                  estimateJacobian           = false;
     bool                  alwaysBuildJacobian        = false;
     std::string           preconditionerType;

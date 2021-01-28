@@ -174,7 +174,7 @@ public:
       if (_nbNonConstTimesteps >= _maxNonConstTimesteps && _maxNonConstTimesteps > 0)
         _freezed = true;
     }
-
+    PRECICE_INFO("Updating precon weights");
     // type specific update functionality
     _update_(timestepComplete, oldValues, res);
   }
@@ -184,6 +184,16 @@ public:
   {
     PRECICE_TRACE(_requireNewQR);
     return _requireNewQR;
+  }
+  
+  bool updatedWeights()
+  {
+    return _updatedWeights;
+  }
+
+  void updatedWeightsReset()
+  {
+    _updatedWeights = false;
   }
 
   /// to tell the preconditioner that QR-decomposition has been recomputed
@@ -222,6 +232,8 @@ protected:
 
   /// True if a QR decomposition from scratch is necessary
   bool _requireNewQR = false;
+
+  bool _updatedWeights = false;
 
   /// True if _nbNonConstTimesteps >= _maxNonConstTimesteps, i.e., preconditioner is not updated any more.
   bool _freezed = false;

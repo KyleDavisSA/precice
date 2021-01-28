@@ -509,13 +509,15 @@ void MVQNAcceleration::restartIMVJ()
 
     bool partialSVDUpdate = false;
 
-    //int halfChunk = _WtilChunk.size();
+    int halfChunk = _WtilChunk.size();
     //if(partialSVDUpdate){
 
-    int halfChunk = (_WtilChunk.size()/2) + 1;
+    //int halfChunk = (_WtilChunk.size()/2) + 1;
     //}
 
     //int halfChunk = (_WtilChunk.size()/2) + 1;
+    //int halfChunk = _WtilChunk.size() - 2;
+    //int halfChunk = 3;
 
     for(int i = halfChunk; i < _WtilChunk.size(); i++){
       _WtilChunkSave.push_back(_WtilChunk[i]);
@@ -534,7 +536,8 @@ void MVQNAcceleration::restartIMVJ()
     // otherwise, the first element of each container holds the decomposition of the current
     // truncated SVD, i.e., Wtil^0 = \phi, Z^0 = S\psi^T, this should not be added to the SVD.
     int q = _svdJ.isSVDinitialized() ? 1 : 0;
-    //q = 1;
+    if (_nbRestarts > 1)
+      q = 1;
 
 
     // perform M-1 rank-1 updates of the truncated SVD-dec of the Jacobian
@@ -675,28 +678,33 @@ void MVQNAcceleration::restartIMVJ()
     // drop all stored Wtil^q, Z^q matrices
     PRECICE_INFO("Restart Zero");
 
-    //_WtilChunk.clear();
-    //_pseudoInverseChunk.clear();
+    _WtilChunk.clear();
+    _pseudoInverseChunk.clear();
 
+    /*
     std::vector<Eigen::MatrixXd> _WtilChunkSave;
     std::vector<Eigen::MatrixXd> _pseudoInverseChunkSave;
 
-    for(int i = 1; i < _WtilChunk.size(); i++){
+    for(int i = 0; i < _WtilChunk.size(); i++){
       _WtilChunkSave.push_back(_WtilChunk[i]);
       _pseudoInverseChunkSave.push_back(_pseudoInverseChunk[i]);
     }
+    
 
     _WtilChunk.clear();
     _pseudoInverseChunk.clear();
 
     for(int i = 0; i < _WtilChunkSave.size(); i++){
-      PRECICE_INFO("Adding previous Wtil to chunk");
-      _WtilChunk.push_back(_WtilChunkSave[i]);
-      _pseudoInverseChunk.push_back(_pseudoInverseChunkSave[i]);
+      if (i != 1){
+        PRECICE_INFO("Adding previous Wtil to chunk");
+        _WtilChunk.push_back(_WtilChunkSave[i]);
+        _pseudoInverseChunk.push_back(_pseudoInverseChunkSave[i]);
+      }
     }
     
     _WtilChunkSave.clear();
     _pseudoInverseChunkSave.clear();
+    */
 
     PRECICE_DEBUG("MVJ-RESTART, mode=Zero");
 
@@ -832,10 +840,17 @@ void MVQNAcceleration::specializedIterationsConverged(
       //if (_nbRestarts == 0)
       //  _chunkSizeUsed *= 2;
 
-      if ((int) _WtilChunk.size() >= 2*_chunkSizeUsed + 1) {
-        //if (_nbRestarts == 13){
-        //  _svdJ.reset();
-        //}
+      if ((int) _WtilChunk.size() >= _chunkSizeUsed + 1) {
+        PRECICE_INFO("sigmaValue: " << _svdJ.sigmaValue());
+        double sigmaCheck = _svdJ.sigmaValue();
+        //if (sigmaCheck > 0.6){
+        //if (_nbRestarts == 21){
+        bool toReset = _preconditioner->updatedWeights();
+        if (toReset){
+          PRECICE_INFO("sigmaValue: " << sigmaCheck);
+          _svdJ.reset();
+          _preconditioner->updatedWeightsReset();
+        }
         // < RESTART >
         _nbRestarts++;
         utils::Event  svd("restartIMVJ");
