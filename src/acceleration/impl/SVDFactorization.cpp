@@ -72,6 +72,18 @@ void SVDFactorization::reset()
   _epsQR2                = 1e-3;
 }
 
+void SVDFactorization::svdTrunc()
+{
+  int rows = _psi.rows();
+  int cols = _psi.cols();
+  if (cols > 149){
+    PRECICE_INFO("SVD Truncation");
+    _psi.conservativeResize(rows, 50);
+    _phi.conservativeResize(rows, 50);
+    _sigma.conservativeResize(50);
+  }
+}
+
 void SVDFactorization::computeQRdecomposition(
     Matrix const &A,
     Matrix &      Q,

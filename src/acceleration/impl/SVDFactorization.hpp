@@ -164,23 +164,38 @@ public:
       */
     _cols = _sigma.size() - 1;
 
+   truncColLimit = 400;
+
+
     int waste = 0;
     for (int i = 0; i < (int) _sigma.size(); i++) {
-      if ((_sigma(i) < (int) _sigma(0) * _truncationEps) || (i > 800)) {
+      if ((_sigma(i) < (int) _sigma(0) * _truncationEps) || (i > truncColLimit)) {
         _cols = i;
         waste = _sigma.size() - i;
         break;
       }
     }
+    
 
     _sigmaValue = _sigma(_cols)/_sigma(0);
     _waste += waste;
+      
+
+    //if (_sigmaValue > 0.01 && (_cols >= (truncColLimit - 1))){
+    //  truncColLimit += 50;
+    //}
 
     _psi.conservativeResize(_rows, _cols);
     _phi.conservativeResize(_rows, _cols);
     _sigma.conservativeResize(_cols);
+
+    //if (_sigmaValue > 0.01 && (_cols > truncColLimit - 1)){
+    //  _psi.conservativeResize(_rows, 20);
+    //  _phi.conservativeResize(_rows, 20);
+    //  _sigma.conservativeResize(20);
+    //}
     PRECICE_INFO("Rows and columns: " << _psi.rows() << ", " << _psi.cols() << ", " << _phi.rows() << ", " << _phi.cols() << ", " << _sigma.rows() << ", " << _sigma.cols());
-    PRECICE_INFO("SVD factorization of Jacobian is truncated to " << _cols << " DOFs. Cut off " << waste << " DOFs " << _sigmaValue);
+    PRECICE_INFO("SVD factorization of Jacobian is truncated to " << _cols << " DOFs. Cut off " << waste << " DOFs " << _sigmaValue << " and trunc limit: " << truncColLimit);
 
     _initialSVD = true;
   }
@@ -195,6 +210,8 @@ public:
     * @brief: resets the SVD factorization
     */
   void reset();
+
+  void svdTrunc();
 
   /**
     * @brief: returns a matrix representation of the orthogonal matrix Psi, A = Psi * Sigma * Phi^T
@@ -284,6 +301,8 @@ private:
   int _cols = 0;
 
   double _sigmaValue = 0.00001;
+
+  int truncColLimit = 50;
 
   /// Number of global rows, i.e., sum of _rows for all procs
   int _globalRows = 0;

@@ -256,6 +256,9 @@ public:
   /// Solves the linear system, returns false it not converged
   bool solve(Vector &b, Vector &x);
 
+  /// Solves the linear system, returns false it not converged
+  double solveResidual(Vector &b, Vector &x);
+
   /// Solves the transposed linear system, returns false it not converged
   bool solveTranspose(Vector &b, Vector &x);
 

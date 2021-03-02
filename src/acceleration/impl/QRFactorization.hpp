@@ -101,6 +101,10 @@ public:
    */
   void deleteColumn(int k);
 
+  void performQR2();
+
+  void resetQR2();
+
   /**
     * @brief inserts a new column at position 0, i.e., shifts right and inserts at first position
     * and updates the QR factorization.
@@ -220,6 +224,8 @@ private:
   bool          _fstream_set;
 
   int _globalRows;
+
+  bool runQR2 = false;
 };
 
 } // namespace impl

@@ -632,10 +632,19 @@ bool KSPSolver::solve(Vector &b, Vector &x)
 {
   PetscErrorCode     ierr = 0;
   KSPConvergedReason convReason;
+  PetscReal norm;
   KSPSolve(ksp, b, x);
   ierr = KSPGetConvergedReason(ksp, &convReason);
+  double resErr = KSPGetResidualNorm(ksp, &norm);
   CHKERRQ(ierr);
   return (convReason > 0);
+}
+
+double KSPSolver::solveResidual(Vector &b, Vector &x)
+{
+  PetscReal norm;
+  KSPGetResidualNorm(ksp, &norm);
+  return (norm);
 }
 
 bool KSPSolver::solveTranspose(Vector &b, Vector &x)

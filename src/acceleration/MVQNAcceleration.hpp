@@ -137,6 +137,8 @@ private:
   /// @brief tracks the number of restarts of IMVJ
   int _nbRestarts;
 
+  int wtilNoReset = 1;
+
   // DEBUG
   //std::fstream _info2;
   double _avgRank;

@@ -23,6 +23,8 @@
 #include "utils/Petsc.hpp"
 namespace petsc = precice::utils::petsc;
 #include "utils/Event.hpp"
+#include "petscksp.h" 
+#include "petscmat.h" 
 
 // Forward declaration to friend the boost test struct
 namespace MappingTests {
@@ -582,9 +584,20 @@ void PetRadialBasisFctMapping<RADIAL_BASIS_FUNCTION_T>::computeMapping()
     VecSet(rhs, 1);
     rhs.assemble();
     if (not _solver.solve(rhs, rescalingCoeffs)) {
+       KSPReasonView(_solver, PETSC_VIEWER_STDOUT_WORLD);
+       PRECICE_WARN("RBF rescaling linear system has not converged. Deactivating rescaling!");
+       useRescaling = false;
+     }
+    /*if (not _solver.solve(rhs, rescalingCoeffs)) {
       PRECICE_WARN("RBF rescaling linear system has not converged. Deactivating rescaling!");
       useRescaling = false;
     }
+    */
+    double resErr = _solver.solveResidual(rhs, rescalingCoeffs);
+    PRECICE_INFO("PETSc convergence residual: " << resErr);
+    KSPReasonView(_solver, PETSC_VIEWER_STDOUT_WORLD);
+    
+    
     eRescaling.addData("Iterations", _solver.getIterationNumber());
     ierr = MatCreateVecs(_matrixA, nullptr, &oneInterpolant.vector);
     CHKERRV(ierr);
@@ -684,8 +697,11 @@ void PetRadialBasisFctMapping<RADIAL_BASIS_FUNCTION_T>::map(int inputDataID, int
         CHKERRV(ierr);
         auto sigma = petsc::Vector::allocate(_matrixQ, "sigma", petsc::Vector::LEFT);
         if (not _QRsolver.solveTranspose(tau, sigma)) {
+          double resErr = _solver.solveResidual(tau, sigma);
+          PRECICE_INFO("PETSc convergence residual: " << resErr);
           KSPView(_QRsolver, PETSC_VIEWER_STDOUT_WORLD);
-          PRECICE_ERROR("The polynomial linear system of the RBF mapping from mesh " << input()->getName() << " to mesh "
+          KSPReasonView(_QRsolver, PETSC_VIEWER_STDOUT_WORLD);
+          PRECICE_WARN("The polynomial linear system of the RBF mapping from mesh " << input()->getName() << " to mesh "
                                                                                      << output()->getName() << " has not converged. This means most probably that the mapping problem is not well-posed. "
                                                                                      << "Please check if your coupling meshes are correct. Maybe you need to fix axis-aligned mapping setups "
                                                                                      << "by marking perpendicular axes as dead?");
@@ -695,13 +711,24 @@ void PetRadialBasisFctMapping<RADIAL_BASIS_FUNCTION_T>::map(int inputDataID, int
         ierr = MatMultTranspose(_matrixA, in, au);
         CHKERRV(ierr);
         utils::Event eSolve("map.pet.solveConservative.From" + input()->getName() + "To" + output()->getName(), precice::syncMode);
-        if (not _solver.solve(au, out)) {
+        /*if (not _solver.solve(au, out)) {
+          double resErr = _solver.solveResidual(au, out);
+          PRECICE_INFO("PETSc convergence residual: " << resErr);
           KSPView(_solver, PETSC_VIEWER_STDOUT_WORLD);
-          PRECICE_ERROR("The linear system of the RBF mapping from mesh " << input()->getName() << " to mesh "
+          */
+        if (not _solver.solve(au, out)) {
+          double resErr = _solver.solveResidual(au, out);
+          PRECICE_INFO("PETSc convergence residual: " << resErr);
+          KSPView(_solver, PETSC_VIEWER_STDOUT_WORLD);
+          KSPReasonView(_solver, PETSC_VIEWER_STDOUT_WORLD);
+          PRECICE_WARN("The linear system of the RBF mapping from mesh " << input()->getName() << " to mesh "
                                                                           << output()->getName() << " has not converged. This means most probably that the mapping problem is not well-posed. "
                                                                           << "Please check if your coupling meshes are correct. Maybe you need to fix axis-aligned mapping setups "
                                                                           << "by marking perpendicular axes as dead?");
         }
+        double resErr = _solver.solveResidual(au, out);
+        PRECICE_INFO("PETSc convergence residual: " << resErr);
+        KSPReasonView(_solver, PETSC_VIEWER_STDOUT_WORLD);
         eSolve.addData("Iterations", _solver.getIterationNumber());
         eSolve.stop();
       }
@@ -750,9 +777,17 @@ void PetRadialBasisFctMapping<RADIAL_BASIS_FUNCTION_T>::map(int inputDataID, int
       in.assemble();
 
       if (_polynomial == Polynomial::SEPARATE) {
-        if (not _QRsolver.solve(in, a)) {
+        /*if (not _QRsolver.solve(in, a)) {
+          double resErr = _solver.solveResidual(in, a);
+          PRECICE_INFO("PETSc convergence residual: " << resErr);
           KSPView(_QRsolver, PETSC_VIEWER_STDOUT_WORLD);
-          PRECICE_ERROR("The polynomial QR system of the RBF mapping from mesh " << input()->getName() << " to mesh "
+          */
+          if (not _QRsolver.solve(in, a)) {
+          double resErr = _solver.solveResidual(in, a);
+          PRECICE_INFO("PETSc convergence residual: " << resErr);
+          KSPView(_QRsolver, PETSC_VIEWER_STDOUT_WORLD);
+          KSPReasonView(_QRsolver, PETSC_VIEWER_STDOUT_WORLD);
+          PRECICE_WARN("The polynomial QR system of the RBF mapping from mesh " << input()->getName() << " to mesh "
                                                                                  << output()->getName() << " has not converged. This means most probably that the mapping problem is not well-posed. "
                                                                                  << "Please check if your coupling meshes are correct. Maybe you need to fix axis-aligned mapping setups "
                                                                                  << "by marking perpendicular axes as dead?");
@@ -769,12 +804,18 @@ void PetRadialBasisFctMapping<RADIAL_BASIS_FUNCTION_T>::map(int inputDataID, int
 
       utils::Event eSolve("map.pet.solveConsistent.From" + input()->getName() + "To" + output()->getName(), precice::syncMode);
       if (not _solver.solve(in, p)) {
+        double resErr = _solver.solveResidual(in, p);
+        PRECICE_INFO("PETSc convergence residual: " << resErr);
         KSPView(_solver, PETSC_VIEWER_STDOUT_WORLD);
-        PRECICE_ERROR("The linear system of the RBF mapping from mesh " << input()->getName() << " to mesh "
+        KSPReasonView(_solver, PETSC_VIEWER_STDOUT_WORLD);
+        PRECICE_WARN("The linear system of the RBF mapping from mesh " << input()->getName() << " to mesh "
                                                                         << output()->getName() << " has not converged. This means most probably that the mapping problem is not well-posed. "
                                                                         << "Please check if your coupling meshes are correct. Maybe you need to fix axis-aligned mapping setups "
                                                                         << "by marking perpendicular axes as dead?");
       }
+      double resErr = _solver.solveResidual(in, p);
+      PRECICE_INFO("PETSc convergence residual: " << resErr);
+      KSPReasonView(_solver, PETSC_VIEWER_STDOUT_WORLD);
       eSolve.addData("Iterations", _solver.getIterationNumber());
       eSolve.stop();
 

@@ -342,6 +342,7 @@ void BaseQNAcceleration::performAcceleration(
     _residuals += _oldValues;
     _values = _residuals;
 
+
     //PRECICE_INFO("   _values output in under: " << _values);
 
     computeUnderrelaxationSecondaryData(cplData);
@@ -382,16 +383,26 @@ void BaseQNAcceleration::performAcceleration(
     //}
 
     _preconditioner->apply(_matrixV);
+    bool toReset = _preconditioner->updatedWeights();
+    PRECICE_INFO("Reset the preconditioner with new weights: " << toReset);
+    if (toReset){
+      _qrV.performQR2();
+    }
+    _preconditioner->updatedWeightsReset(); // COmment this out for no filter
     
 
     if (_preconditioner->requireNewQR()) {
-      if (not(_filter == Acceleration::QR2FILTER)) { //for QR2 filter, there is no need to do this twice
+      if (not(_filter == Acceleration::QR2FILTER) && not(_filter == Acceleration::QR3FILTER) ) { //for QR2 filter, there is no need to do this twice
         //if (tSteps < 10){
-          PRECICE_INFO("Resetting the preconditioner: " << _preconditioner->requireNewQR());
-          utils::Event  preReset("preconditionerResetQR");
-          _qrV.reset(_matrixV, getLSSystemRows());
-          preReset.stop();
-        //}
+          bool toReset = _preconditioner->updatedWeights();
+          PRECICE_INFO("Resetting the preconditioner before: " << toReset);
+          if (toReset){
+            PRECICE_INFO("Resetting the preconditioner: " << _preconditioner->requireNewQR());
+            utils::Event  preReset("preconditionerResetQR");
+            _qrV.reset(_matrixV, getLSSystemRows());
+            preReset.stop();
+            _preconditioner->updatedWeightsReset();
+          }
         _preconditioner->newQRfulfilled();
       }
       
@@ -402,7 +413,7 @@ void BaseQNAcceleration::performAcceleration(
       _nbDropCols = 0;
     }
 
-    methodA = 1;
+    methodA = 0;
     methodB = 0;
     methodC = 0;
 
@@ -449,7 +460,7 @@ void BaseQNAcceleration::performAcceleration(
       //}
     
     // apply the configured filter to the LS system
-    bool isFreezed = _preconditioner->isConst();
+    //bool isFreezed = _preconditioner->isConst();
 
     if(_timestepsReused > 0){
       if (its > 2 || (tSteps > 0)){//(its > 2 || (tSteps != 0 && its > 0)){
@@ -458,6 +469,7 @@ void BaseQNAcceleration::performAcceleration(
         utils::Event  aF("applyFilter");
         applyFilter();
         aF.stop();
+        _qrV.resetQR2();
       }
     }else {
       if (its > 2 || tSteps > 0){
@@ -465,6 +477,7 @@ void BaseQNAcceleration::performAcceleration(
         utils::Event  aF("applyFilter");
         applyFilter();
         aF.stop();
+        _qrV.resetQR2();
       }
     }
 
@@ -689,6 +702,7 @@ void BaseQNAcceleration::concatenateCouplingData(
   for (int id : _dataIDs) {
     int         size      = cplData[id]->values().size();
     auto &      values    = cplData[id]->values();
+    PRECICE_INFO("  L2 Norm of input subvector: " << utils::MasterSlave::l2norm(values));
     const auto &oldValues = cplData[id]->oldValues.col(0);
     for (int i = 0; i < size; i++) {
       _values(i + offset)    = values(i);

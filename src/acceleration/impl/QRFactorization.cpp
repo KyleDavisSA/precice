@@ -195,10 +195,12 @@ void QRFactorization::applyFilter(double singularityLimit, std::vector<int> &del
       }
     }
     */
-  } else {
+  } 
+  if((maxDeleted > 2) || (runQR2)) {
     PRECICE_INFO("Too many columns to delete. Calling QR2 from QR3 filter to remove at most: " << maxDeleted);
     _Q.resize(0, 0);
     _R.resize(0, 0);
+    delIndices.resize(0);
     _cols = 0;
     _rows = V.rows();
     for (int k = 0; k < V.cols(); k++) {
@@ -831,6 +833,16 @@ void QRFactorization::setfstream(std::fstream *stream)
 void QRFactorization::setFilter(int filter)
 {
   _filter = filter;
+}
+
+void QRFactorization::performQR2()
+{
+  runQR2 = true;
+}
+
+void QRFactorization::resetQR2()
+{
+  runQR2 = false;
 }
 
 } // namespace impl

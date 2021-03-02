@@ -157,6 +157,9 @@ void MVQNAcceleration::updateDifferenceMatrices(
         Eigen::VectorXd v = _matrixV.col(0);
         Eigen::VectorXd w = _matrixW.col(0);
 
+        //utils::appendFront(v,_matrixV.cols(1));
+        //utils::appendFront(w,_matrixW.cols(1));
+
         // here, we check for _Wtil.cols() as the matrices V, W need to be updated before hand
         // and thus getLSSystemCols() does not yield the correct result.
         bool columnLimitReached = _Wtil.cols() == _maxIterationsUsed;
@@ -184,6 +187,7 @@ void MVQNAcceleration::updateDifferenceMatrices(
               utils::appendFront(_matrixV_RSLS, v);
               utils::appendFront(_matrixW_RSLS, w);
               _matrixCols_RSLS.front()++;
+              PRECICE_INFO("_matrixCols_RSLS: " << _matrixCols_RSLS);
             }
           }
 
@@ -429,6 +433,7 @@ void MVQNAcceleration::computeNewtonUpdateEfficient(
    *  where r_til = Z^q * (-res) is computed first and then xUp := Wtil^q * r_til
    */
   if (_imvjRestart) {
+    PRECICE_INFO("Chunk size: " << _WtilChunk.size());
     for (int i = 0; i < (int) _WtilChunk.size(); i++) {
       int colsLSSystemBackThen = _pseudoInverseChunk[i].rows();
       PRECICE_ASSERT(colsLSSystemBackThen == _WtilChunk[i].cols(), colsLSSystemBackThen, _WtilChunk[i].cols());
@@ -678,10 +683,10 @@ void MVQNAcceleration::restartIMVJ()
     // drop all stored Wtil^q, Z^q matrices
     PRECICE_INFO("Restart Zero");
 
-    _WtilChunk.clear();
-    _pseudoInverseChunk.clear();
+    //_WtilChunk.clear();
+    //_pseudoInverseChunk.clear();
 
-    /*
+    
     std::vector<Eigen::MatrixXd> _WtilChunkSave;
     std::vector<Eigen::MatrixXd> _pseudoInverseChunkSave;
 
@@ -694,17 +699,17 @@ void MVQNAcceleration::restartIMVJ()
     _WtilChunk.clear();
     _pseudoInverseChunk.clear();
 
-    for(int i = 0; i < _WtilChunkSave.size(); i++){
-      if (i != 1){
+    for(int i = 1; i < _WtilChunkSave.size(); i++){
+      //if (i != 1){
         PRECICE_INFO("Adding previous Wtil to chunk");
         _WtilChunk.push_back(_WtilChunkSave[i]);
         _pseudoInverseChunk.push_back(_pseudoInverseChunkSave[i]);
-      }
+      //}
     }
     
     _WtilChunkSave.clear();
     _pseudoInverseChunkSave.clear();
-    */
+    
 
     PRECICE_DEBUG("MVJ-RESTART, mode=Zero");
 
@@ -827,11 +832,16 @@ void MVQNAcceleration::specializedIterationsConverged(
 
       } else {
         */
-      _WtilChunk.push_back(_Wtil);
-      _pseudoInverseChunk.push_back(Z);
+       
+      if (wtilNoReset >= _timestepsReused){
+        _WtilChunk.push_back(_Wtil);
+        _pseudoInverseChunk.push_back(Z);
+        wtilNoReset = 0;
+      }
+
       //}
       
-      PRECICE_INFO("Chunk size: " << _WtilChunk.size());
+      //PRECICE_INFO("Chunk size: " << _WtilChunk.size());
 
       /**
        *  Restart the IMVJ according to restart type
@@ -840,16 +850,32 @@ void MVQNAcceleration::specializedIterationsConverged(
       //if (_nbRestarts == 0)
       //  _chunkSizeUsed *= 2;
 
+      double sigmaCheck = _svdJ.sigmaValue();
+
+      if (sigmaCheck > 0.01){
+        _chunkSizeUsed = _chunkSize;
+        //_svdJ.svdTrunc();
+      } else {
+        _chunkSizeUsed = _chunkSize;
+      }
+
+
       if ((int) _WtilChunk.size() >= _chunkSizeUsed + 1) {
         PRECICE_INFO("sigmaValue: " << _svdJ.sigmaValue());
-        double sigmaCheck = _svdJ.sigmaValue();
+        //double sigmaCheck = _svdJ.sigmaValue();
         //if (sigmaCheck > 0.6){
         //if (_nbRestarts == 21){
+        if (sigmaCheck > 0.01){
+        //  _svdJ.svdTrunc();
+        }
         bool toReset = _preconditioner->updatedWeights();
+        //if (sigmaCheck > 0.02){
+        //  toReset = true;
+        //}
         if (toReset){
           PRECICE_INFO("sigmaValue: " << sigmaCheck);
-          _svdJ.reset();
-          _preconditioner->updatedWeightsReset();
+          //_svdJ.reset();
+          //_preconditioner->updatedWeightsReset();
         }
         // < RESTART >
         _nbRestarts++;
@@ -881,6 +907,7 @@ void MVQNAcceleration::specializedIterationsConverged(
     // store inverse Jacobian from converged time step. NOT SCALED with preconditioner
     _oldInvJacobian = _invJacobian;
   }
+  wtilNoReset++;
 }
 
 // ==================================================================================
