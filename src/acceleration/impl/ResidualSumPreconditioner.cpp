@@ -45,26 +45,47 @@ void ResidualSumPreconditioner::_update_(bool                   timestepComplete
       norms[k] = std::sqrt(norms[k]);
     }
     sum = std::sqrt(sum);
+    PRECICE_INFO("Sum of res-sum preconditioner: " << sum);
     PRECICE_CHECK(not math::equals(sum, 0.0), "All residual sub-vectors in the residual-sum preconditioner are numerically zero. "
                                               "Your simulation probably got unstable, e.g. produces NAN values.");
 
     for (size_t k = 0; k < _subVectorSizes.size(); k++) {
       _residualSum[k] += norms[k] / sum;
+      PRECICE_INFO("Norm of res-sum: " << norms[k]);
+      PRECICE_INFO("residualSum of res-sum: " << _residualSum[k]);
       PRECICE_CHECK(not math::equals(_residualSum[k], 0.0), "A sub-vector in the residual-sum preconditioner became numerically zero. "
                                                             "Thus, the preconditioner is no longer stable. Please try the value preconditioner instead.");
     }
 
     offset = 0;
+    int resetWeight = 0;
+    normWeights.resize(_subVectorSizes.size());
+    // Chech if the new scaling weights are more than 1 order of magnitude from the previous weights
+    if (((1 / _residualSum[0])/firstWeight > 10) || ((1 / _residualSum[0])/firstWeight < 0.1) || ((1 / _residualSum[1])/secondWeight > 10) || ((1 / _residualSum[1])/secondWeight < 0.1)){
+        resetWeight = 1;
+    }
     for (size_t k = 0; k < _subVectorSizes.size(); k++) {
+      if (tStepPrecon < 2 || resetWeight == 1){
       for (size_t i = 0; i < _subVectorSizes[k]; i++) {
         _weights[i + offset]    = 1 / _residualSum[k];
         _invWeights[i + offset] = _residualSum[k];
       }
+          firstWeight = 1 / _residualSum[0]; 
+          secondWeight = 1 / _residualSum[1];
+        
+        _requireNewQR = true;
+        _updatedWeights = true;
+      } 
+      normWeights[k] = 1 / _residualSum[k];
+      PRECICE_INFO("Actual Norm of weights: " << _weights[1 + offset]);
+      PRECICE_INFO("Predicted Norm of weights: " << normWeights[k]);
       offset += _subVectorSizes[k];
+      PRECICE_INFO("Norm of weights: first " << firstWeight << " and Second: " << secondWeight);
     }
+    resetWeight = 0;
 
-    _requireNewQR = true;
   } else {
+    tStepPrecon++;
     for (size_t k = 0; k < _subVectorSizes.size(); k++) {
       _residualSum[k] = 0.0;
     }
