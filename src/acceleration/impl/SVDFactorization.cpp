@@ -298,6 +298,21 @@ int SVDFactorization::rank()
   return _cols;
 }
 
+void SVDFactorization::columnThresholdIncrease()
+{
+  _truncColLimit += 50;
+}
+
+int SVDFactorization::truncColumnLimit()
+{
+  return _truncColLimit;
+}
+
+double SVDFactorization::sigmaValue()
+{
+  return _sigmaValue;
+}
+
 } // namespace impl
 } // namespace acceleration
 } // namespace precice

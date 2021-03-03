@@ -501,6 +501,14 @@ void MVQNAcceleration::restartIMVJ()
   //               ------------ RESTART SVD ------------
   if (_imvjRestartType == MVQNAcceleration::RS_SVD) {
 
+    double sigmaCheck = _svdJ.sigmaValue();
+    int svdColumns = _svdJ.truncColumnLimit();
+    PRECICE_INFO("Smallest sigma value of SVD: " << sigmaCheck);
+    if (sigmaCheck > 0.01 && (_svdJ.rank() > (svdColumns - 1))){
+      _svdJ.columnThresholdIncrease();
+    }
+    PRECICE_INFO("Current column lenght truncation limit: " << _svdJ.truncColumnLimit());
+
     // we need to compute the updated SVD of the scaled Jacobian matrix
     // |= APPLY PRECONDITIONING  J_prev = Wtil^q, Z^q  ===|
     for (int i = 0; i < (int) _WtilChunk.size(); i++) {
@@ -554,7 +562,7 @@ void MVQNAcceleration::restartIMVJ()
     _preconditioner->apply(_pseudoInverseChunk.front(), true);
     // |===================                             ==|
 
-    PRECICE_DEBUG("MVJ-RESTART, mode=SVD. Rank of truncated SVD of Jacobian " << rankAfter << ", new modes: " << rankAfter - rankBefore << ", truncated modes: " << waste << " avg rank: " << _avgRank / _nbRestarts);
+    PRECICE_INFO("MVJ-RESTART, mode=SVD. Rank of truncated SVD of Jacobian " << rankAfter << ", new modes: " << rankAfter - rankBefore << ", truncated modes: " << waste << " avg rank: " << _avgRank / _nbRestarts);
     //double percentage = 100.0*used_storage/(double)theoreticalJ_storage;
     if (utils::MasterSlave::isMaster() || (not utils::MasterSlave::isMaster() && not utils::MasterSlave::isSlave()))
       _infostringstream << " - MVJ-RESTART " << _nbRestarts << ", mode= SVD -\n  new modes: " << rankAfter - rankBefore << "\n  rank svd: " << rankAfter << "\n  avg rank: " << _avgRank / _nbRestarts << "\n  truncated modes: " << waste << "\n"
