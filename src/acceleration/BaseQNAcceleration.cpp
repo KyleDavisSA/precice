@@ -370,8 +370,11 @@ void BaseQNAcceleration::performAcceleration(
     if (its > 3 || tSteps > 0)
       applyFilter();
 
-    if (its == 3 && tSteps == 0){
-      
+    if (tSteps == 0 && its == 3){
+      Eigen::VectorXd vDisp = _matrixV.col(2);
+      removeMatrixColumn(2);
+      _qrV.deleteColumn(2);
+      PRECICE_INFO("Method A: Removing the very first column with residual: " << utils::MasterSlave::l2norm(vDisp));
     }
 
     // revert scaling of V, in computeQNUpdate all data objects are unscaled.
