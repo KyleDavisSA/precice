@@ -155,22 +155,25 @@ public:
 
     /** (5) truncation of SVD
       */
-    _cols = _sigma.size();
+    _cols = _sigma.size() - 1;
 
     int waste = 0;
     for (int i = 0; i < (int) _sigma.size(); i++) {
-      if (_sigma(i) < (int) _sigma(0) * _truncationEps) {
+      if ((_sigma(i) < (int) _sigma(0) * _truncationEps) || (i > truncColLimit)) {
         _cols = i;
         waste = _sigma.size() - i;
         break;
       }
     }
+    _sigmaValue = _sigma(_cols)/_sigma(0);
     _waste += waste;
 
     _psi.conservativeResize(_rows, _cols);
     _phi.conservativeResize(_rows, _cols);
     _sigma.conservativeResize(_cols);
-    PRECICE_DEBUG("SVD factorization of Jacobian is truncated to " << _cols << " DOFs. Cut off " << waste << " DOFs");
+    PRECICE_INFO("Rows and columns: " << _psi.rows() << ", " << _psi.cols() << ", " << _phi.rows() << ", " << _phi.cols() << ", " << _sigma.rows() << ", " << _sigma.cols());
+    PRECICE_INFO("SVD factorization of Jacobian is truncated to " << _cols << " DOFs. Cut off " << waste << " DOFs " << _sigmaValue << " and trunc limit: " << truncColLimit);
+    //PRECICE_DEBUG("SVD factorization of Jacobian is truncated to " << _cols << " DOFs. Cut off " << waste << " DOFs");
 
     _initialSVD = true;
   }
@@ -279,6 +282,9 @@ private:
 
   /// Truncation parameter for the updated SVD decomposition
   double _truncationEps;
+
+  /// Maximum number of columns for the truncated SVD
+  int truncColLimit = 50;
 
   /// Threshold for the QR2 filter for the QR decomposition.
   double _epsQR2 = 1e-3;
