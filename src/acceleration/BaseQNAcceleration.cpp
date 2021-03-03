@@ -353,12 +353,25 @@ void BaseQNAcceleration::performAcceleration(
     _preconditioner->update(false, _values, _residuals);
     // apply scaling to V, V' := P * V (only needed to reset the QR-dec of V)
     _preconditioner->apply(_matrixV);
+    bool toReset = _preconditioner->updatedWeights();
+    PRECICE_INFO("Reset the preconditioner with new weights: " << toReset);
+    if (toReset){
+      _qrV.performQR2();
+    }
+    _preconditioner->updatedWeightsReset(); // COmment this out for no filter
 
     if (_preconditioner->requireNewQR()) {
-      if (not(_filter == Acceleration::QR2FILTER)) { //for QR2 filter, there is no need to do this twice
-        _qrV.reset(_matrixV, getLSSystemRows());
+      if (not(_filter == Acceleration::QR2FILTER) && not(_filter == Acceleration::QR3FILTER) ) { //for QR2 filter, there is no need to do this twice
+        bool toReset = _preconditioner->updatedWeights();
+        if (toReset){
+          PRECICE_INFO("Resetting the preconditioner before: " << toReset);
+          utils::Event  preReset("preconditionerResetQR");
+          _qrV.reset(_matrixV, getLSSystemRows());
+          preReset.stop();
+          _preconditioner->updatedWeightsReset();
+        }
+        _preconditioner->newQRfulfilled();
       }
-      _preconditioner->newQRfulfilled();
     }
 
     if (_firstIteration) {
