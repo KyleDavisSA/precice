@@ -63,6 +63,7 @@ void ResidualSumPreconditioner::_update_(bool                   timestepComplete
     // Chech if the new scaling weights are more than 1 order of magnitude from the previous weights
     if (((1 / _residualSum[0])/firstWeight > 10) || ((1 / _residualSum[0])/firstWeight < 0.1) || ((1 / _residualSum[1])/secondWeight > 10) || ((1 / _residualSum[1])/secondWeight < 0.1)){
         resetWeight = 1;
+        PRECICE_INFO("Resetting weights due to difference to previous weights");
     }
     for (size_t k = 0; k < _subVectorSizes.size(); k++) {
       if (tStepPrecon < 2 || resetWeight == 1){

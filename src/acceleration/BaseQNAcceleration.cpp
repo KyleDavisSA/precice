@@ -359,6 +359,7 @@ void BaseQNAcceleration::performAcceleration(
       _qrV.performQR2();
     }
     _preconditioner->updatedWeightsReset(); // COmment this out for no filter
+    
 
     if (_preconditioner->requireNewQR()) {
       if (not(_filter == Acceleration::QR2FILTER) && not(_filter == Acceleration::QR3FILTER) ) { //for QR2 filter, there is no need to do this twice
@@ -373,6 +374,7 @@ void BaseQNAcceleration::performAcceleration(
         _preconditioner->newQRfulfilled();
       }
     }
+    
 
     if (_firstIteration) {
       _nbDelCols  = 0;
@@ -380,7 +382,10 @@ void BaseQNAcceleration::performAcceleration(
     }
 
     // apply the configured filter to the LS system
+    utils::Event  applyingFilter("ApplyFilter");
     applyFilter();
+    applyingFilter.stop();
+    _qrV.resetQR2();
 
     // revert scaling of V, in computeQNUpdate all data objects are unscaled.
     _preconditioner->revert(_matrixV);
