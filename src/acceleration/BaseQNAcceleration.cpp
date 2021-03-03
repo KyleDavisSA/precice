@@ -367,7 +367,12 @@ void BaseQNAcceleration::performAcceleration(
     }
 
     // apply the configured filter to the LS system
-    applyFilter();
+    if (its > 3 || tSteps > 0)
+      applyFilter();
+
+    if (its == 3 && tSteps == 0){
+      
+    }
 
     // revert scaling of V, in computeQNUpdate all data objects are unscaled.
     _preconditioner->revert(_matrixV);
