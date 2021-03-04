@@ -202,6 +202,11 @@ public:
     return _freezed;
   }
 
+  void freezeWeights()
+  {
+    _freezed = true;
+  }
+
 protected:
   /// Weights used to scale the matrix V and the residual
   std::vector<double> _weights;

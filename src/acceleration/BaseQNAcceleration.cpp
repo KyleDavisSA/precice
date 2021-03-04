@@ -474,6 +474,7 @@ void BaseQNAcceleration::concatenateCouplingData(
       _values(i + offset)    = values(i);
       _oldValues(i + offset) = oldValues(i);
     }
+    PRECICE_DEBUG("  L2 Norm of input sub-vector: " << utils::MasterSlave::l2norm(_values));
     offset += size;
   }
 }

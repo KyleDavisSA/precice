@@ -18,6 +18,7 @@
 #include "utils/EigenHelperFunctions.hpp"
 #include "utils/MasterSlave.hpp"
 #include "utils/assertion.hpp"
+#include "utils/Event.hpp"
 
 using precice::cplscheme::PtrCouplingData;
 
@@ -518,6 +519,8 @@ void MVQNAcceleration::restartIMVJ()
     // |===================                            ===|
 
     int rankBefore = _svdJ.isSVDinitialized() ? _svdJ.rank() : 0;
+    //if (not _svdJ.isSVDinitialized())
+    _preconditioner->freezeWeights();
 
     // if it is the first time step, there is no initial SVD, so take all Wtil, Z matrices
     // otherwise, the first element of each container holds the decomposition of the current
@@ -561,6 +564,7 @@ void MVQNAcceleration::restartIMVJ()
     _preconditioner->revert(_WtilChunk.front());
     _preconditioner->apply(_pseudoInverseChunk.front(), true);
     // |===================                             ==|
+
 
     PRECICE_INFO("MVJ-RESTART, mode=SVD. Rank of truncated SVD of Jacobian " << rankAfter << ", new modes: " << rankAfter - rankBefore << ", truncated modes: " << waste << " avg rank: " << _avgRank / _nbRestarts);
     //double percentage = 100.0*used_storage/(double)theoreticalJ_storage;
@@ -760,7 +764,9 @@ void MVQNAcceleration::specializedIterationsConverged(
 
         // < RESTART >
         _nbRestarts++;
+        utils::Event IMVJrestart("m2n.imvjRestart");
         restartIMVJ();
+        IMVJrestart.stop();
       }
 
       // only in imvj normal mode with efficient update:

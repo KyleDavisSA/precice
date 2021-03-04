@@ -60,6 +60,7 @@ void ResidualSumPreconditioner::_update_(bool                   timestepComplete
         _weights[i + offset]    = 1 / _residualSum[k];
         _invWeights[i + offset] = _residualSum[k];
       }
+      PRECICE_DEBUG("preconditioner weight: " << _weights[offset]);
       offset += _subVectorSizes[k];
     }
 
