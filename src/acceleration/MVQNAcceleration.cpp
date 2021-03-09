@@ -508,7 +508,7 @@ void MVQNAcceleration::restartIMVJ()
     if (sigmaCheck > 0.01 && (_svdJ.rank() > (svdColumns - 1))){
       _svdJ.columnThresholdIncrease();
     }
-    PRECICE_INFO("Current column lenght truncation limit: " << _svdJ.truncColumnLimit());
+    PRECICE_DEBUG("Current column lenght truncation limit: " << _svdJ.truncColumnLimit());
 
     // we need to compute the updated SVD of the scaled Jacobian matrix
     // |= APPLY PRECONDITIONING  J_prev = Wtil^q, Z^q  ===|

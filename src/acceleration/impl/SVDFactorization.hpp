@@ -292,7 +292,7 @@ private:
   double _truncationEps;
 
   /// Maximum number of columns for the truncated SVD
-  int _truncColLimit = 50;
+  int _truncColLimit = 500;
 
   /// Threshold for the QR2 filter for the QR decomposition.
   double _epsQR2 = 1e-3;
