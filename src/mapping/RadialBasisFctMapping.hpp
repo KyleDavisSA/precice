@@ -4,6 +4,7 @@
 
 #include <Eigen/Core>
 #include <Eigen/QR>
+#include <Eigen/Dense>
 
 #include <boost/version.hpp>
 #if BOOST_VERSION < 106600
@@ -78,12 +79,19 @@ private:
 
   bool _hasComputedMapping = false;
 
+  double relative_error;
+
   /// Radial basis function type used in interpolation.
   RADIAL_BASIS_FUNCTION_T _basisFunction;
 
   Eigen::MatrixXd _matrixA;
 
+  Eigen::MatrixXd _matrixC;
+
   Eigen::ColPivHouseholderQR<Eigen::MatrixXd> _qr;
+
+  //Eigen::Inverse<Eigen::MatrixXd> _qrInv;
+  Eigen::MatrixXd _qrInv;
 
   /// true if the mapping along some axis should be ignored
   std::vector<bool> _deadAxis;
@@ -194,6 +202,8 @@ void RadialBasisFctMapping<RADIAL_BASIS_FUNCTION_T>::computeMapping()
 
     _matrixA = buildMatrixA(_basisFunction, globalInMesh, globalOutMesh, _deadAxis);
     _qr      = buildMatrixCLU(_basisFunction, globalInMesh, _deadAxis).colPivHouseholderQr();
+    _matrixC = buildMatrixCLU(_basisFunction, globalInMesh, _deadAxis);
+    _qrInv   = buildMatrixCLU(_basisFunction, globalInMesh, _deadAxis).inverse();
 
     if (not _qr.isInvertible()) {
       PRECICE_ERROR("The interpolation matrix of the RBF mapping from mesh " << input()->getName() << " to mesh "
@@ -319,6 +329,7 @@ void RadialBasisFctMapping<RADIAL_BASIS_FUNCTION_T>::mapConservative(int inputDa
     Eigen::VectorXd Au(_matrixA.cols());  // rows == n
     Eigen::VectorXd in(_matrixA.rows());  // rows == outputSize
     Eigen::VectorXd out(_matrixA.cols()); // rows == n
+    Eigen::VectorXd xOut(_matrixA.rows()); // rows == n
 
     for (int dim = 0; dim < valueDim; dim++) {
       for (int i = 0; i < in.size(); i++) { // Fill input data values
@@ -327,7 +338,12 @@ void RadialBasisFctMapping<RADIAL_BASIS_FUNCTION_T>::mapConservative(int inputDa
 
       Au  = _matrixA.transpose() * in;
       out = _qr.solve(Au);
+      // A -> _matrixA, b -> in, x -> .solve(in)
+      xOut = _qr.solve(in);
+      double relative_error = (_matrixC*xOut - in).norm() / in.norm(); // norm() is L2 norm
+      PRECICE_DEBUG("The relative error of direct RBF solver with QR decomposition: " << relative_error);
 
+      //cout << "The relative error is:\n" << relative_error << endl;
       // Copy mapped data to output data values
       for (int i = 0; i < out.size() - polyparams; i++) {
         outputValues[i * valueDim + dim] = out[i];
@@ -429,6 +445,8 @@ void RadialBasisFctMapping<RADIAL_BASIS_FUNCTION_T>::mapConsistent(int inputData
     Eigen::VectorXd p(_matrixA.cols());   // rows == n
     Eigen::VectorXd in(_matrixA.cols());  // rows == n
     Eigen::VectorXd out(_matrixA.rows()); // rows == outputSize
+    Eigen::VectorXd relErrorInverse(_matrixA.rows());  // rows == n
+    relErrorInverse.setZero();
     in.setZero();
 
     // Construct Eigen vectors
@@ -446,7 +464,17 @@ void RadialBasisFctMapping<RADIAL_BASIS_FUNCTION_T>::mapConsistent(int inputData
 
       p   = _qr.solve(in);
       out = _matrixA * p;
-
+      // A -> _matrixC, b -> in, x -> p
+      if (not in.norm() == 0 ){
+        relative_error = (_matrixC*p - in).norm() / in.norm(); // norm() is L2 norm
+        PRECICE_DEBUG("The relative error of direct RBF solver with QR decomposition: " << relative_error);
+        for (int i = 0;  i < out.size(); i++) {
+          relErrorInverse[i] = p[i]/_qrInv(i,i);
+        }
+        PRECICE_DEBUG("The relative error of Rippa Method " << relErrorInverse.norm());
+      }
+      
+        
       // Copy mapped data to ouptut data values
       for (int i = 0; i < out.size(); i++) {
         outputValues[i * valueDim + dim] = out[i];
