@@ -152,6 +152,9 @@ void RadialBasisFctMapping<RADIAL_BASIS_FUNCTION_T>::computeMapping()
     outMesh = output();
   }
 
+  PRECICE_INFO("Finished building Inmesh of size: " << inMesh->vertices().size());
+  PRECICE_INFO("Finished building Outmesh of size: " << outMesh->vertices().size());
+
   if (utils::MasterSlave::isSlave()) {
 
     // Input mesh may have overlaps
@@ -187,10 +190,36 @@ void RadialBasisFctMapping<RADIAL_BASIS_FUNCTION_T>::computeMapping()
         globalOutMesh.addMesh(slaveOutMesh);
       }
 
+      // Now have global in mesh. 
+      /*
+          1. Distribute the globalInMesh and glabalOutMesh to all ranks
+          2. Each rank has its own input and output mesh
+          3. Create a bounding box from these points.
+
+      */
+
     } else { // Serial
       globalInMesh.addMesh(*inMesh);
       globalOutMesh.addMesh(*outMesh);
     }
+
+    PRECICE_INFO("Finished building global Inmesh of size: " << globalInMesh.vertices().size());
+    PRECICE_INFO("Finished building global Outmesh of size: " << globalOutMesh.vertices().size());
+
+    // This is after global mesh is distributed to each rank (not efficient)
+    /*
+
+    auto           inTree          = mesh::rtree::getVertexRTree(inMesh);  // Does this contain all points across ranks
+    auto           outTree          = mesh::rtree::getVertexRTree(globalOutMesh);
+    std::vector<size_t> results;
+    results.clear();
+    auto search_box = mesh::getEnclosingBox(localMesh, largeSupportRadius);
+
+    inTree->query(bg::index::intersects(search_box), std::back_inserter(inResults));
+
+      // inResult is all points from the global inMesh that that lie within the local inMesh plus some additional radius.
+      // Use this new local inMesh and outMesh to build a local _matrixA and _qr. 
+    */
 
     _matrixA = buildMatrixA(_basisFunction, globalInMesh, globalOutMesh, _deadAxis);
     _qr      = buildMatrixCLU(_basisFunction, globalInMesh, _deadAxis).colPivHouseholderQr();
