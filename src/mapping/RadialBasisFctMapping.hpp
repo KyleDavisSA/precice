@@ -3,7 +3,8 @@
 #include "Mapping.hpp"
 
 #include <Eigen/Core>
-#include <Eigen/QR>
+#include <Eigen/Dense>
+
 
 #include <boost/version.hpp>
 #if BOOST_VERSION < 106600
@@ -84,6 +85,7 @@ private:
   Eigen::MatrixXd _matrixA;
 
   Eigen::ColPivHouseholderQR<Eigen::MatrixXd> _qr;
+  Eigen::LDLT<Eigen::MatrixXd> _llt;
 
   /// true if the mapping along some axis should be ignored
   std::vector<bool> _deadAxis;
@@ -155,6 +157,8 @@ void RadialBasisFctMapping<RADIAL_BASIS_FUNCTION_T>::computeMapping()
   PRECICE_INFO("Finished building Inmesh of size: " << inMesh->vertices().size());
   PRECICE_INFO("Finished building Outmesh of size: " << outMesh->vertices().size());
 
+  utils::Event  meshDecom("serialRBFComm"); 
+
   if (utils::MasterSlave::isSlave()) {
 
     // Input mesh may have overlaps
@@ -203,6 +207,8 @@ void RadialBasisFctMapping<RADIAL_BASIS_FUNCTION_T>::computeMapping()
       globalOutMesh.addMesh(*outMesh);
     }
 
+    meshDecom.stop();
+
     PRECICE_INFO("Finished building global Inmesh of size: " << globalInMesh.vertices().size());
     PRECICE_INFO("Finished building global Outmesh of size: " << globalOutMesh.vertices().size());
 
@@ -221,15 +227,24 @@ void RadialBasisFctMapping<RADIAL_BASIS_FUNCTION_T>::computeMapping()
       // Use this new local inMesh and outMesh to build a local _matrixA and _qr. 
     */
 
+    utils::Event  qrCreate("qrBuild"); 
     _matrixA = buildMatrixA(_basisFunction, globalInMesh, globalOutMesh, _deadAxis);
-    _qr      = buildMatrixCLU(_basisFunction, globalInMesh, _deadAxis).colPivHouseholderQr();
+    PRECICE_INFO("Finished building matrix A");
+    PRECICE_INFO("Matrix A size: " << _matrixA.size() );
+    _llt     = buildMatrixLLT(_basisFunction, globalInMesh, _deadAxis).ldlt(); 
+    //_inv     = buildMatrixLLT(_basisFunction, globalInMesh, _deadAxis).llt(); 
+    PRECICE_INFO("Finished building LLT decomposition");
+    //_qr      = buildMatrixCLU(_basisFunction, globalInMesh, _deadAxis).colPivHouseholderQr();
+    PRECICE_INFO("Finished building QR Decomposition");
+    qrCreate.stop();
 
-    if (not _qr.isInvertible()) {
+    /*if (not _qr.isInvertible()) {
       PRECICE_ERROR("The interpolation matrix of the RBF mapping from mesh " << input()->getName() << " to mesh "
                                                                              << output()->getName() << " is not invertable. This means that the mapping problem is not well-posed. "
                                                                              << "Please check if your coupling meshes are correct. Maybe you need to fix axis-aligned mapping setups "
                                                                              << "by marking perpendicular axes as dead?");
     }
+    */
   }
   _hasComputedMapping = true;
   PRECICE_DEBUG("Compute Mapping is Completed.");
@@ -355,7 +370,8 @@ void RadialBasisFctMapping<RADIAL_BASIS_FUNCTION_T>::mapConservative(int inputDa
       }
 
       Au  = _matrixA.transpose() * in;
-      out = _qr.solve(Au);
+      out = _llt.solve(Au);
+      //out = _qr.solve(Au);
 
       // Copy mapped data to output data values
       for (int i = 0; i < out.size() - polyparams; i++) {
@@ -473,7 +489,7 @@ void RadialBasisFctMapping<RADIAL_BASIS_FUNCTION_T>::mapConsistent(int inputData
         in[i] = inputValues[i * valueDim + dim];
       }
 
-      p   = _qr.solve(in);
+      p   = _llt.solve(in);
       out = _matrixA * p;
 
       // Copy mapped data to ouptut data values
@@ -605,7 +621,52 @@ Eigen::MatrixXd buildMatrixCLU(RADIAL_BASIS_FUNCTION_T basisFunction, const mesh
     }
     matrixCLU(i, inputSize) = 1.0;
   }
+  //PRECICE_DEBUG("Transpose Matrix CLU");
+  matrixCLU.triangularView<Eigen::Lower>() = matrixCLU.transpose();
 
+  return matrixCLU;
+}
+
+template <typename RADIAL_BASIS_FUNCTION_T>
+Eigen::MatrixXd buildMatrixLLT(RADIAL_BASIS_FUNCTION_T basisFunction, const mesh::Mesh &inputMesh, std::vector<bool> deadAxis)
+{
+  int inputSize  = inputMesh.vertices().size();
+  int dimensions = inputMesh.getDimensions();
+
+  int deadDimensions = 0;
+  for (int d = 0; d < dimensions; d++) {
+    if (deadAxis[d])
+      deadDimensions += 1;
+  }
+
+  int polyparams = 1 + dimensions - deadDimensions;
+  PRECICE_ASSERT(inputSize >= 1 + polyparams, inputSize);
+  int n = inputSize + polyparams; // Add linear polynom degrees
+
+  Eigen::MatrixXd matrixCLU(n, n);
+  matrixCLU.setZero();
+
+  for (int i = 0; i < inputSize; ++i) {
+    for (int j = i; j < inputSize; ++j) {
+      //const auto &u   = inputMesh.vertices()[i].getCoords();
+      //const auto &v   = inputMesh.vertices()[j].getCoords();
+      //matrixCLU(i, j) = basisFunction.evaluate(utils::reduceVector((u - v), deadAxis).norm());
+      if (j >= i){
+        const auto &u   = inputMesh.vertices()[i].getCoords();
+        const auto &v   = inputMesh.vertices()[j].getCoords();
+        matrixCLU(i, j) = basisFunction.evaluate(utils::reduceVector((u - v), deadAxis).norm());
+        matrixCLU(j, i) = matrixCLU(i, j);
+      }   
+    }
+
+    const auto reduced = utils::reduceVector(inputMesh.vertices()[i].getCoords(), deadAxis);
+
+    for (int dim = 0; dim < dimensions - deadDimensions; dim++) {
+      matrixCLU(i, inputSize + 1 + dim) = reduced[dim];
+    }
+    matrixCLU(i, inputSize) = 1.0;
+  }
+  //PRECICE_DEBUG("Transpose Matrix CLU");
   matrixCLU.triangularView<Eigen::Lower>() = matrixCLU.transpose();
 
   return matrixCLU;
@@ -614,6 +675,7 @@ Eigen::MatrixXd buildMatrixCLU(RADIAL_BASIS_FUNCTION_T basisFunction, const mesh
 template <typename RADIAL_BASIS_FUNCTION_T>
 Eigen::MatrixXd buildMatrixA(RADIAL_BASIS_FUNCTION_T basisFunction, const mesh::Mesh &inputMesh, const mesh::Mesh &outputMesh, std::vector<bool> deadAxis)
 {
+
   int inputSize  = inputMesh.vertices().size();
   int outputSize = outputMesh.vertices().size();
   int dimensions = inputMesh.getDimensions();
