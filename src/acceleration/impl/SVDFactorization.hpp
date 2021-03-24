@@ -161,7 +161,7 @@ public:
     int waste = 0;
     for (int i = 0; i < (int) _sigma.size(); i++) {
       if (i > 100)
-        //_truncEps = 0.0001;
+        _truncEps = 0.01;
       if (_sigma(i) < (int) _sigma(0) * _truncEps) {
         _cols = i;
         waste = _sigma.size() - i;
