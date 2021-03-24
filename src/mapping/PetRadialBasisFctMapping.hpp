@@ -146,7 +146,7 @@ private:
   Polynomial _polynomial;
 
   /// Toggles use of rescaled basis functions, only active when Polynomial == SEPARATE
-  bool useRescaling = true;
+  bool useRescaling = false;
 
   /// Number of coefficients for the integrated polynomial. Depends on dimension and number of dead dimensions
   size_t polyparams;

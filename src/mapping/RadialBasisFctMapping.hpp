@@ -159,11 +159,18 @@ void RadialBasisFctMapping<RADIAL_BASIS_FUNCTION_T>::computeMapping()
 
   utils::Event  meshDecom("serialRBFComm"); 
 
+
   if (utils::MasterSlave::isSlave()) {
 
     // Input mesh may have overlaps
     mesh::Mesh filteredInMesh("filteredInMesh", inMesh->getDimensions(), inMesh->isFlipNormals(), mesh::Mesh::MESH_ID_UNDEFINED);
     mesh::filterMesh(filteredInMesh, *inMesh, [&](const mesh::Vertex &v) { return v.isOwner(); });
+    filteredInMesh.computeBoundingBox();
+    auto bb = filteredInMesh.getBoundingBox();
+    outMesh->computeBoundingBox();
+    auto bbOut = outMesh->getBoundingBox();
+    PRECICE_INFO("Bounding box In: " << bb);
+    PRECICE_INFO("Bounding box Out: " << bbOut);
 
     // Send the mesh
     com::CommunicateMesh(utils::MasterSlave::_communication).sendMesh(filteredInMesh, 0);
@@ -193,6 +200,22 @@ void RadialBasisFctMapping<RADIAL_BASIS_FUNCTION_T>::computeMapping()
         com::CommunicateMesh(utils::MasterSlave::_communication).receiveMesh(slaveOutMesh, rankSlave);
         globalOutMesh.addMesh(slaveOutMesh);
       }
+
+      globalInMesh.computeBoundingBox();
+      auto bb = globalInMesh.getBoundingBox();
+      globalOutMesh.computeBoundingBox();
+      auto bbOut = globalOutMesh.getBoundingBox();
+      PRECICE_INFO("Master Bounding box In: " << bb);
+      PRECICE_INFO("Master Bounding box Out: " << bbOut);
+
+      for (int rankSlave = 1; rankSlave < utils::MasterSlave::getSize(); ++rankSlave) {
+        com::CommunicateMesh(utils::MasterSlave::_communication).sendMesh(globalInMesh, rankSlave);
+        com::CommunicateMesh(utils::MasterSlave::_communication).sendMesh(globalOutMesh, rankSlave);
+      }
+
+  
+
+
 
       // Now have global in mesh. 
       /*
@@ -246,6 +269,35 @@ void RadialBasisFctMapping<RADIAL_BASIS_FUNCTION_T>::computeMapping()
     }
     */
   }
+  utils::Event  meshDecomReceive("serialRBFCommReceive"); 
+  if (utils::MasterSlave::isSlave()) {
+    mesh::Mesh globalInMesh("globalInMesh", inMesh->getDimensions(), inMesh->isFlipNormals(), mesh::Mesh::MESH_ID_UNDEFINED);
+    mesh::Mesh globalOutMesh("globalOutMesh", outMesh->getDimensions(), outMesh->isFlipNormals(), mesh::Mesh::MESH_ID_UNDEFINED);
+
+    mesh::Mesh masterInMesh(inMesh->getName(), inMesh->getDimensions(), inMesh->isFlipNormals(), mesh::Mesh::MESH_ID_UNDEFINED);
+    com::CommunicateMesh(utils::MasterSlave::_communication).receiveMesh(masterInMesh, 0);
+    globalInMesh.addMesh(masterInMesh);
+
+    mesh::Mesh masterOutMesh(inMesh->getName(), inMesh->getDimensions(), inMesh->isFlipNormals(), mesh::Mesh::MESH_ID_UNDEFINED);
+    com::CommunicateMesh(utils::MasterSlave::_communication).receiveMesh(masterOutMesh, 0);
+    globalOutMesh.addMesh(masterOutMesh);
+
+    globalInMesh.computeBoundingBox();
+    auto bbS = globalInMesh.getBoundingBox();
+    globalOutMesh.computeBoundingBox();
+    auto bbOutS = globalOutMesh.getBoundingBox();
+    PRECICE_INFO("Slave Bounding box In: " << bbS);
+    PRECICE_INFO("Slave Bounding box Out: " << bbOutS);
+
+    // Just use the current outMesh on the worker rank for the outmesh when building the matrixA
+    /*
+      _matrixA = buildMatrixA(_basisFunction, globalInMesh, outMesh, _deadAxis);
+      _llt     = buildMatrixLLT(_basisFunction, globalInMesh, _deadAxis).ldlt(); 
+    */
+
+    
+  }
+  meshDecomReceive.stop();
   _hasComputedMapping = true;
   PRECICE_DEBUG("Compute Mapping is Completed.");
 }
