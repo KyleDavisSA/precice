@@ -189,8 +189,12 @@ void AccelerationConfiguration::xmlTagCallback(
     }
     _neededMeshes.push_back(_meshName);
   } else if (callingTag.getName() == TAG_INIT_RELAX) {
-    _config.relaxationFactor       = callingTag.getDoubleAttributeValue(ATTR_VALUE);
-    _config.forceInitialRelaxation = callingTag.getBooleanAttributeValue(ATTR_ENFORCE);
+    _config.relaxationFactor = callingTag.getDoubleAttributeValue(ATTR_VALUE);
+    if (callingTag.hasAttribute(ATTR_ENFORCE)) {
+      _config.forceInitialRelaxation = callingTag.getBooleanAttributeValue(ATTR_ENFORCE);
+    } else {
+      _config.forceInitialRelaxation = false;
+    }
   } else if (callingTag.getName() == TAG_MAX_USED_ITERATIONS) {
     _config.maxIterationsUsed = callingTag.getIntAttributeValue(ATTR_VALUE);
   } else if (callingTag.getName() == TAG_TIME_WINDOWS_REUSED) {
@@ -451,7 +455,7 @@ void AccelerationConfiguration::addTypeSpecificSubtags(
     auto nonconstTSteps = makeXMLAttribute(ATTR_PRECOND_NONCONST_TIME_WINDOWS, -1)
                               .setDocumentation(
                                   "After the given number of time steps, the preconditioner weights "
-                                  "are freezed and the preconditioner acts like a constant preconditioner.");
+                                  "are frozen and the preconditioner acts like a constant preconditioner.");
     tagPreconditioner.addAttribute(nonconstTSteps);
     tag.addSubtag(tagPreconditioner);
 
@@ -521,7 +525,7 @@ void AccelerationConfiguration::addTypeSpecificSubtags(
                                       .setDocumentation("Type of the preconditioner.");
     tagPreconditioner.addAttribute(attrPreconditionerType);
     auto nonconstTSteps = makeXMLAttribute(ATTR_PRECOND_NONCONST_TIME_WINDOWS, -1)
-                              .setDocumentation("After the given number of time steps, the preconditioner weights are freezed and the preconditioner acts like a constant preconditioner.");
+                              .setDocumentation("After the given number of time steps, the preconditioner weights are frozen and the preconditioner acts like a constant preconditioner.");
     tagPreconditioner.addAttribute(nonconstTSteps);
     tag.addSubtag(tagPreconditioner);
 
