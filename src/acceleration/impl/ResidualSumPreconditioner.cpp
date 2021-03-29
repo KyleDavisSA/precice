@@ -98,7 +98,7 @@ void ResidualSumPreconditioner::_update_(bool                   timestepComplete
           } 
         //}
       normWeights[k] = 1 / _residualSum[k];
-      PRECICE_INFO("Actual Norm of weights: " << _weights[1 + offset]);
+      PRECICE_INFO("Actual Norm of weights: " << _setWeights[k]);
       PRECICE_INFO("Predicted Norm of weights: " << normWeights[k]);
       offset += _subVectorSizes[k];
       //PRECICE_INFO("Norm of weights: first " << firstWeight << " and Second: " << secondWeight);
