@@ -102,6 +102,18 @@ public:
   void deleteColumn(int k);
 
   /**
+   * @brief This forces the QR2 filter to run even if another filter is specified.
+   * This is when the preconditioner weights change and QR3 filter cannot be used.
+   */
+  void performQR2();
+
+  /**
+   * @brief This reset the QR2 filter if preconditioner weights change and 
+   * QR2 filter is the specified filter.
+   */
+  void resetQR2();
+
+  /**
     * @brief inserts a new column at position 0, i.e., shifts right and inserts at first position
     * and updates the QR factorization.
     * This function works on the memory of v, thus changes the Vector v.
@@ -220,6 +232,8 @@ private:
   bool          _fstream_set;
 
   int _globalRows;
+
+  bool runQR2 = false;
 };
 
 } // namespace impl
