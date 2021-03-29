@@ -32,6 +32,7 @@ public:
 
   int tStepPrecon = 1;
   Eigen::VectorXd normWeights;
+  
 
 
 private:
@@ -45,6 +46,7 @@ private:
   logging::Logger _log{"acceleration::ResidualSumPreconditioner"};
 
   std::vector<double> _residualSum;
+  std::vector<double> _setWeights;
 };
 
 } // namespace impl
