@@ -185,6 +185,8 @@ protected:
     */
   bool _resetLS = false;
 
+  bool _deleteFirstColumn = false;
+
   /// @brief Solver output from last iteration.
   Eigen::VectorXd _oldXTilde;
 

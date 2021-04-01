@@ -367,7 +367,14 @@ void BaseQNAcceleration::performAcceleration(
     }
 
     // apply the configured filter to the LS system
-    applyFilter();
+    if (its == 2 && tSteps == 0){
+      if (_deleteFirstColumn){
+        
+      }
+    } else if (its > 2 || tSteps > 0){
+      applyFilter();
+    }
+    
 
     // revert scaling of V, in computeQNUpdate all data objects are unscaled.
     _preconditioner->revert(_matrixV);
@@ -473,6 +480,10 @@ void BaseQNAcceleration::concatenateCouplingData(
     for (int i = 0; i < size; i++) {
       _values(i + offset)    = values(i);
       _oldValues(i + offset) = oldValues(i);
+    }
+    double_normValues = utils::MasterSlave::l2norm(_values);
+    if (_firstIteration && (_normValues == 0)){
+      _deleteFirstColumn = true;
     }
     offset += size;
   }
