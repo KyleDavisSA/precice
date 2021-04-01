@@ -367,14 +367,17 @@ void BaseQNAcceleration::performAcceleration(
     }
 
     // apply the configured filter to the LS system
-    if (its == 2 && tSteps == 0){
+    if (its == 3 && tSteps == 0){
       if (_deleteFirstColumn){
-        
+        Eigen::VectorXd vDisp = _matrixV.col(2);
+        removeMatrixColumn(2);
+        _qrV.deleteColumn(2);
+        PRECICE_DEBUG("Removing the very first column with residual: " << utils::MasterSlave::l2norm(vDisp) << " - due to zero input vector from solver.");
+        _deleteFirstColumn = false;
       }
-    } else if (its > 2 || tSteps > 0){
+    } else if (its > 3 || tSteps > 0){
       applyFilter();
     }
-    
 
     // revert scaling of V, in computeQNUpdate all data objects are unscaled.
     _preconditioner->revert(_matrixV);
@@ -481,9 +484,10 @@ void BaseQNAcceleration::concatenateCouplingData(
       _values(i + offset)    = values(i);
       _oldValues(i + offset) = oldValues(i);
     }
-    double_normValues = utils::MasterSlave::l2norm(_values);
+    double _normValues = utils::MasterSlave::l2norm(_values);
     if (_firstIteration && (_normValues == 0)){
       _deleteFirstColumn = true;
+      PRECICE_DEBUG("Data with ID: " << id << " has a zero input vector.");
     }
     offset += size;
   }
