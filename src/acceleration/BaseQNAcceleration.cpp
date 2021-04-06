@@ -568,7 +568,13 @@ void BaseQNAcceleration::iterationsConverged(
        */
     }
   } else if ((int) _matrixCols.size() > _timestepsReused) {
-    int toRemove = _matrixCols.back();
+    //int toRemove = _matrixCols.back();
+    int matColSize = _matrixCols.size();
+    PRECICE_INFO("MatColSize for wtil update: " << matColSize);
+    int toRemove = 0;
+    for (int i = 0; i < _timestepsReused; i++){
+      toRemove += _matrixCols[matColSize - 1 - i];
+    }
     _nbDropCols += toRemove;
     PRECICE_ASSERT(toRemove > 0, toRemove);
     PRECICE_DEBUG("Removing " << toRemove << " cols from least-squares system with " << getLSSystemCols() << " cols");
@@ -582,7 +588,9 @@ void BaseQNAcceleration::iterationsConverged(
       // also remove the corresponding columns from the dynamic QR-descomposition of _matrixV
       _qrV.popBack();
     }
-    _matrixCols.pop_back();
+    for (int i = 0; i < _timestepsReused; i++){
+      _matrixCols.pop_back();
+    }
   }
 
   _matrixCols.push_front(0);

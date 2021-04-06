@@ -741,7 +741,7 @@ void MVQNAcceleration::specializedIterationsConverged(
 
     //              ------- RESTART/ JACOBIAN ASSEMBLY -------
     if (_imvjRestart) {
-      if (wtilChunkGroup == 3){
+      if (wtilChunkGroup == _timestepsReused){
         PRECICE_INFO("Resetting chunk sizes to zero, and push back WtilChunk");
         // add the matrices Wtil and Z of the converged configuration to the storage containers
         Eigen::MatrixXd Z(_qrV.cols(), _qrV.rows());
@@ -752,31 +752,38 @@ void MVQNAcceleration::specializedIterationsConverged(
 
         // push back unscaled pseudo Inverse, Wtil is also unscaled.
         // all objects in Wtil chunk and Z chunk are NOT PRECONDITIONED
-        int toRemove = _matrixCols.back();
+        /*int matColSize = _matrixCols.size();
+        PRECICE_INFO("MatColSize for wtil update: " << matColSize);
+        int toRemove = _matrixCols[matColSize - 1] + _matrixCols[matColSize - 2];
         Eigen::MatrixXd _WtilUpdate = Eigen::MatrixXd::Zero(_Wtil.rows(), toRemove);
         Eigen::MatrixXd _ZUpdate = Eigen::MatrixXd::Zero(toRemove, _Wtil.rows());
-
-        PRECICE_ASSERT(toRemove > 0, toRemove);
+        */
+        //PRECICE_ASSERT(toRemove > 0, toRemove);
         // remove columns
-        for (int i = 0; i < toRemove; i++) {
+        //for (int i = 0; i < toRemove; i++) {
+        /*for (int i = 0; i < _Wtil.cols(); i++) {
           for (int j = 0; j < _Wtil.rows(); j++){
-            _WtilUpdate(j,toRemove - 1 - i) = _Wtil(j, _Wtil.cols() - 1 - i);
-            _ZUpdate(toRemove - 1 - i, j) = Z(_Wtil.cols() - 1 - i, j);
+            //_WtilUpdate(j,toRemove - 1 - i) = _Wtil(j, _Wtil.cols() - 1 - i);
+            //_ZUpdate(toRemove - 1 - i, j) = Z(_Wtil.cols() - 1 - i, j);
+            //_WtilUpdate(j,i-1) = _Wtil(j, i-1);
+            //_ZUpdate(i-1, j) = Z(i-1, j);
           }
-        }
-        
-        
+        } */
+                
+        //_WtilChunk.push_back(_WtilUpdate);
+        //_pseudoInverseChunk.push_back(_ZUpdate);
+        _WtilChunk.push_back(_Wtil);
+        _pseudoInverseChunk.push_back(Z);
 
-        _WtilChunk.push_back(_WtilUpdate);
-        _pseudoInverseChunk.push_back(_ZUpdate);
-
-       // wtilChunkGroup = 0;
+        wtilChunkGroup = 1;
+        //_Wtil.conservativeResize(0, 0);
         
         _resetLS = true;
 
       } else {
         PRECICE_INFO("Increase wtilChunkGroup");
         wtilChunkGroup += 1;
+        _resetLS = true;
       }
       PRECICE_INFO("Chunk size is: " << _WtilChunk.size()); 
       for (int i = 0; i < _WtilChunk.size(); i++){
