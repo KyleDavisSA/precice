@@ -107,6 +107,7 @@ void MVQNAcceleration::initialize(
     _matrixW_RSLS = Eigen::MatrixXd::Zero(entries, 0);
   }
   _Wtil = Eigen::MatrixXd::Zero(entries, 0);
+  wtilChunkGroup = 0;
 
   if (utils::MasterSlave::isMaster() || (not utils::MasterSlave::isMaster() && not utils::MasterSlave::isSlave()))
     _infostringstream << " IMVJ restart mode: " << _imvjRestart << "\n chunk size: " << _chunkSize << "\n trunc eps: " << _svdJ.getThreshold() << "\n R_RS: " << _RSLSreusedTimesteps << "\n--------\n"
@@ -284,6 +285,7 @@ void MVQNAcceleration::buildWtil()
   PRECICE_ASSERT(getLSSystemCols() == _qrV.cols(), getLSSystemCols(), _qrV.cols());
 
   _Wtil = Eigen::MatrixXd::Zero(_qrV.rows(), _qrV.cols());
+  PRECICE_INFO("Rebuilding Wtil");
 
   // imvj restart mode: re-compute Wtil: Wtil = W - sum_q [ Wtil^q * (Z^q*V) ]
   //                                                      |--- J_prev ---|
@@ -447,10 +449,16 @@ void MVQNAcceleration::computeNewtonUpdateEfficient(
   xUpdate += xUptmp;
 
   // pending deletion: delete Wtil
-  if (_firstIteration && _timestepsReused == 0 && not _forceInitialRelaxation) {
-    _Wtil.conservativeResize(0, 0);
-    _resetLS = true;
-  }
+  //if (wtilChunkGroup == 1){
+    if (_firstIteration && _timestepsReused == 0 && not _forceInitialRelaxation) {
+      //_Wtil.conservativeResize(0, 0);
+      //_resetLS = true;
+      //PRECICE_INFO("Resizing Wtil to zero");
+      //wtilChunkGroup = 0
+    }
+  //} else{
+  //  wtilChunkGroup += 1;
+  //}
 }
 
 // ==================================================================================
@@ -711,6 +719,7 @@ void MVQNAcceleration::specializedIterationsConverged(
 
   // if efficient update of imvj is enabled
   if (not _alwaysBuildJacobian || _imvjRestart) {
+    PRECICE_INFO("Size of Wtil: " << _Wtil.cols());
     // need to apply the preconditioner, as all data structures are reverted after
     // call to computeQNUpdate. Need to call this before the preconditioner is updated.
 
@@ -732,18 +741,47 @@ void MVQNAcceleration::specializedIterationsConverged(
 
     //              ------- RESTART/ JACOBIAN ASSEMBLY -------
     if (_imvjRestart) {
+      if (wtilChunkGroup == 3){
+        PRECICE_INFO("Resetting chunk sizes to zero, and push back WtilChunk");
+        // add the matrices Wtil and Z of the converged configuration to the storage containers
+        Eigen::MatrixXd Z(_qrV.cols(), _qrV.rows());
+        // compute pseudo inverse using QR factorization and back-substitution
+        // also compensates for the scaling of V, i.e.,
+        // reverts Z' = R^-1 * Q^T * P^-1 as Z := Z' * P
+        pseudoInverse(Z);
 
-      // add the matrices Wtil and Z of the converged configuration to the storage containers
-      Eigen::MatrixXd Z(_qrV.cols(), _qrV.rows());
-      // compute pseudo inverse using QR factorization and back-substitution
-      // also compensates for the scaling of V, i.e.,
-      // reverts Z' = R^-1 * Q^T * P^-1 as Z := Z' * P
-      pseudoInverse(Z);
+        // push back unscaled pseudo Inverse, Wtil is also unscaled.
+        // all objects in Wtil chunk and Z chunk are NOT PRECONDITIONED
+        int toRemove = _matrixCols.back();
+        Eigen::MatrixXd _WtilUpdate = Eigen::MatrixXd::Zero(_Wtil.rows(), toRemove);
+        Eigen::MatrixXd _ZUpdate = Eigen::MatrixXd::Zero(toRemove, _Wtil.rows());
 
-      // push back unscaled pseudo Inverse, Wtil is also unscaled.
-      // all objects in Wtil chunk and Z chunk are NOT PRECONDITIONED
-      _WtilChunk.push_back(_Wtil);
-      _pseudoInverseChunk.push_back(Z);
+        PRECICE_ASSERT(toRemove > 0, toRemove);
+        // remove columns
+        for (int i = 0; i < toRemove; i++) {
+          for (int j = 0; j < _Wtil.rows(); j++){
+            _WtilUpdate(j,toRemove - 1 - i) = _Wtil(j, _Wtil.cols() - 1 - i);
+            _ZUpdate(toRemove - 1 - i, j) = Z(_Wtil.cols() - 1 - i, j);
+          }
+        }
+        
+        
+
+        _WtilChunk.push_back(_WtilUpdate);
+        _pseudoInverseChunk.push_back(_ZUpdate);
+
+       // wtilChunkGroup = 0;
+        
+        _resetLS = true;
+
+      } else {
+        PRECICE_INFO("Increase wtilChunkGroup");
+        wtilChunkGroup += 1;
+      }
+      PRECICE_INFO("Chunk size is: " << _WtilChunk.size()); 
+      for (int i = 0; i < _WtilChunk.size(); i++){
+        PRECICE_INFO("Columns in Chunk: " << _WtilChunk[i].cols());
+      }
 
       /**
        *  Restart the IMVJ according to restart type
@@ -768,7 +806,7 @@ void MVQNAcceleration::specializedIterationsConverged(
      */
     if (_timestepsReused > 0 || (_timestepsReused == 0 && _forceInitialRelaxation)) {
       //_Wtil.conservativeResize(0, 0);
-      _resetLS = true;
+      //_resetLS = true;
     }
   }
 

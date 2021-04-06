@@ -137,6 +137,9 @@ private:
   /// @brief tracks the number of restarts of IMVJ
   int _nbRestarts;
 
+  /// @brief indicates number of time-windows to group wtil into
+  int wtilChunkGroup;
+
   // DEBUG
   //std::fstream _info2;
   double _avgRank;
