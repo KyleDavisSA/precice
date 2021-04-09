@@ -372,11 +372,13 @@ void BaseQNAcceleration::performAcceleration(
         Eigen::VectorXd vDisp = _matrixV.col(2);
         removeMatrixColumn(2);
         _qrV.deleteColumn(2);
-        PRECICE_DEBUG("Removing the very first column with residual: " << utils::MasterSlave::l2norm(vDisp) << " - due to zero input vector from solver.");
+        PRECICE_INFO("Removing the very first column with residual: " << utils::MasterSlave::l2norm(vDisp) << " - due to zero input vector from solver.");
         _deleteFirstColumn = false;
       }
     } else if (its > 3 || tSteps > 0){
+      utils::Event  applyingFilter("ApplyFilter");
       applyFilter();
+      applyingFilter.stop();
     }
 
     // revert scaling of V, in computeQNUpdate all data objects are unscaled.
@@ -487,7 +489,7 @@ void BaseQNAcceleration::concatenateCouplingData(
     double _normValues = utils::MasterSlave::l2norm(_values);
     if (_firstIteration && (_normValues == 0)){
       _deleteFirstColumn = true;
-      PRECICE_DEBUG("Data with ID: " << id << " has a zero input vector.");
+      PRECICE_INFO("Data with ID: " << id << " has a zero input vector.");
     }
     offset += size;
   }

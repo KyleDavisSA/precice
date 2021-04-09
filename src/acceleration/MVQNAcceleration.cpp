@@ -752,7 +752,9 @@ void MVQNAcceleration::specializedIterationsConverged(
 
         // < RESTART >
         _nbRestarts++;
+        utils::Event  restartUpdate("IMVJRestart");
         restartIMVJ();
+        restartUpdate.stop();
       }
 
       // only in imvj normal mode with efficient update:
