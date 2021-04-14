@@ -367,6 +367,7 @@ void BaseQNAcceleration::performAcceleration(
     }
 
     // apply the configured filter to the LS system
+    PRECICE_INFO("DeleteFirstColumn: " << _deleteFirstColumn);
     if (its == 3 && tSteps == 0){
       if (_deleteFirstColumn){
         Eigen::VectorXd vDisp = _matrixV.col(2);
@@ -376,6 +377,14 @@ void BaseQNAcceleration::performAcceleration(
         _deleteFirstColumn = false;
       }
     } else if (its > 3 || tSteps > 0){
+      if (_deleteFirstColumn && tSteps == 1){
+        int lenMatV = 2;
+        Eigen::VectorXd vDisp = _matrixV.col(lenMatV);
+        removeMatrixColumn(lenMatV);
+        _qrV.deleteColumn(lenMatV);
+        PRECICE_INFO("Removing the very first column with residual: " << utils::MasterSlave::l2norm(vDisp) << " - due to zero input vector from solver.");
+        _deleteFirstColumn = false;
+      }
       utils::Event  applyingFilter("ApplyFilter");
       applyFilter();
       applyingFilter.stop();
@@ -487,6 +496,7 @@ void BaseQNAcceleration::concatenateCouplingData(
       _oldValues(i + offset) = oldValues(i);
     }
     double _normValues = utils::MasterSlave::l2norm(_values);
+    PRECICE_INFO("Data with ID: " << id << " has a input norm of: " << _normValues);
     if (_firstIteration && (_normValues == 0)){
       _deleteFirstColumn = true;
       PRECICE_INFO("Data with ID: " << id << " has a zero input vector.");
