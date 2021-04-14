@@ -22,7 +22,7 @@ void ResidualSumPreconditioner::initialize(std::vector<size_t> &svs)
   Preconditioner::initialize(svs);
 
   _residualSum.resize(_subVectorSizes.size(), 0.0);
-  _setWeights.resize(_subVectorSizes.size(), 0.0);
+  _setWeights.resize(_subVectorSizes.size(), 1.0);
 }
 
 void ResidualSumPreconditioner::_update_(bool                   timestepComplete,
