@@ -475,7 +475,7 @@ void BaseQNAcceleration::applyFilter()
 
       removeMatrixColumn(delIndices[i]);
 
-      PRECICE_DEBUG(" Filter: removing column with index " << delIndices[i] << " in iteration " << its << " of time step: " << tSteps);
+      PRECICE_INFO(" Filter: removing column with index " << delIndices[i] << " in iteration " << its << " of time step: " << tSteps);
     }
     PRECICE_ASSERT(_matrixV.cols() == _qrV.cols(), _matrixV.cols(), _qrV.cols());
   }
