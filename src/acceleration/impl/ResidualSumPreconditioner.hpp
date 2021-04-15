@@ -27,13 +27,8 @@ public:
 
   bool firstIter = true;
 
-  double firstWeight = 0;
-  double secondWeight = 0;
-
   int tStepPrecon = 1;
   Eigen::VectorXd normWeights;
-  
-
 
 private:
   /**

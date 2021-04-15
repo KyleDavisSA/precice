@@ -77,12 +77,8 @@ void ResidualSumPreconditioner::_update_(bool                   timestepComplete
         PRECICE_INFO("Resetting weights due to difference to previous weights in subvector: " << k);
       }
     }
-    //if (((1 / _residualSum[0])/firstWeight > 10) || ((1 / _residualSum[0])/firstWeight < 0.1) || ((1 / _residualSum[2])/secondWeight > 10) || ((1 / _residualSum[2])/secondWeight < 0.1)){
-    //    resetWeight = 1;
-    //    PRECICE_INFO("Resetting weights due to difference to previous weights");
-    //}
     for (size_t k = 0; k < _subVectorSizes.size(); k++) {
-      //if (not math::equals(_residualSum[k], 0.0) ) {
+      if (not math::equals(_residualSum[k], 0.0) ) {
         if (tStepPrecon < 2 || resetWeight == 1){
           for (size_t i = 0; i < _subVectorSizes[k]; i++) {
             _weights[i + offset]    = 1 / _residualSum[k];
@@ -91,17 +87,15 @@ void ResidualSumPreconditioner::_update_(bool                   timestepComplete
           PRECICE_DEBUG("preconditioner scaling factor[" << k << "] = " << 1 / _residualSum[k]);
         
           _setWeights[k] = 1 / _residualSum[k]; 
-          //secondWeight = 1 / _residualSum[2];
         
           _requireNewQR = true;
           _updatedWeights = true;
           } 
-        //}
+        }
       normWeights[k] = 1 / _residualSum[k];
       PRECICE_INFO("Actual Norm of weights: " << _setWeights[k]);
       PRECICE_INFO("Predicted Norm of weights: " << normWeights[k]);
       offset += _subVectorSizes[k];
-      //PRECICE_INFO("Norm of weights: first " << firstWeight << " and Second: " << secondWeight);
     }
     resetWeight = 0;
 
