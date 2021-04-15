@@ -568,10 +568,9 @@ void BaseQNAcceleration::iterationsConverged(
        */
     }
   } else if ((int) _matrixCols.size() > _timestepsReused) {
-    //int toRemove = _matrixCols.back();
     int matColSize = _matrixCols.size();
     PRECICE_INFO("MatColSize for wtil update: " << matColSize);
-    int toRemove = 0;
+    int toRemove = 0;   // Total number of columns that must be removed from the back of _matrixV and _matrixW
     for (int i = 0; i < _timestepsReused; i++){
       toRemove += _matrixCols[matColSize - 1 - i];
     }
