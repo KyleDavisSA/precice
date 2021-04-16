@@ -367,7 +367,7 @@ void BaseQNAcceleration::performAcceleration(
     }
 
     // apply the configured filter to the LS system
-    PRECICE_INFO("DeleteFirstColumn: " << _deleteFirstColumn);
+    
     if (its == 3 && tSteps == 0){
       if (_deleteFirstColumn){
         Eigen::VectorXd vDisp = _matrixV.col(2);
