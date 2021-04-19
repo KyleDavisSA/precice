@@ -156,6 +156,9 @@ public:
     /** (5) truncation of SVD
       */
     _cols = _sigma.size();
+    for (int i = 0; i < (int) _sigma.size(); i++) {
+      PRECICE_INFO("SVD Sigma Value: " << _sigma(i));
+    }
 
     int waste = 0;
     for (int i = 0; i < (int) _sigma.size(); i++) {
@@ -165,6 +168,7 @@ public:
         break;
       }
     }
+    
     _waste += waste;
 
     _psi.conservativeResize(_rows, _cols);

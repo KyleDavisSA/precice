@@ -367,7 +367,10 @@ void BaseQNAcceleration::performAcceleration(
     }
 
     // apply the configured filter to the LS system
+    
+    utils::Event  applyingFilter("applyFilter");
     applyFilter();
+    applyingFilter.stop();
 
     // revert scaling of V, in computeQNUpdate all data objects are unscaled.
     _preconditioner->revert(_matrixV);
