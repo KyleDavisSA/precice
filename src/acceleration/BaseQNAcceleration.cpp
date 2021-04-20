@@ -318,9 +318,9 @@ void BaseQNAcceleration::performAcceleration(
 
     // Perform constant relaxation
     // with residual: x_new = x_old + omega * res
-    _residuals *= _initialRelaxation;
-    _residuals += _oldValues;
-    _values = _residuals;
+    //_residuals *= _initialRelaxation;
+    //_residuals += _oldValues;
+    _values = (_residuals*_initialRelaxation) + _oldValues;
 
     computeUnderrelaxationSecondaryData(cplData);
   } else {
@@ -350,7 +350,8 @@ void BaseQNAcceleration::performAcceleration(
      * The preconditioner is only applied to the matrix V and the columns that are inserted into the
      * QR-decomposition of V.
      */
-
+    PRECICE_INFO("Residuals before precon: " << utils::MasterSlave::l2norm(_residuals));
+    PRECICE_INFO("deltaRes before precon: " << utils::MasterSlave::l2norm(_deltaRes));
     //_preconditioner->update(false, _values, _residuals);
     _preconditioner->update(false, _values, _deltaRes);
     // apply scaling to V, V' := P * V (only needed to reset the QR-dec of V)

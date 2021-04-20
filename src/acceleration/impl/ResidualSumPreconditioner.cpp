@@ -43,8 +43,10 @@ void ResidualSumPreconditioner::_update_(bool                   timestepComplete
       sum += norms[k];
       offset += _subVectorSizes[k];
       norms[k] = std::sqrt(norms[k]);
+      PRECICE_INFO("Norm of residuals: " << norms[k]);
     }
     sum = std::sqrt(sum);
+    PRECICE_INFO("Sum of preconditioner: " << sum);
     if (math::equals(sum, 0.0)) {
       PRECICE_WARN("All residual sub-vectors in the residual-sum preconditioner are numerically zero ( sum = " << sum << "). This indicates that the data values exchanged between two succesive iterations did not change."
                                                                                                                          " The simulation may be unstable, e.g. produces NAN values. Please check the data values exchanged"
@@ -53,7 +55,9 @@ void ResidualSumPreconditioner::_update_(bool                   timestepComplete
     }
 
     for (size_t k = 0; k < _subVectorSizes.size(); k++) {
+      PRECICE_INFO("_residualSum Before of residuals: " << _residualSum[k]);
       _residualSum[k] += norms[k] / sum;
+      PRECICE_INFO("_residualSum After of residuals: " << _residualSum[k]);
       if (math::equals(_residualSum[k], 0.0)) {
         PRECICE_WARN("A sub-vector in the residual-sum preconditioner became numerically zero ( sub-vector = " << _residualSum[k] << "). If this occured in the second iteration and the initial-relaxation factor is equal to 1.0,"
                                                                                                                                      " check if the coupling data values of one solver is zero in the first iteration."

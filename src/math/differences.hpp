@@ -21,7 +21,7 @@ constexpr bool equals(const Eigen::MatrixBase<DerivedA> &A,
 template <class Scalar>
 typename std::enable_if<std::is_arithmetic<Scalar>::value, bool>::type equals(const Scalar a, const Scalar b, const Scalar tolerance = NUMERICAL_ZERO_DIFFERENCE)
 {
-  return std::abs(a - b) <= tolerance;
+  return std::abs(a - b) <= 0.0000000000001;
 }
 
 template <class DerivedA, class DerivedB>
