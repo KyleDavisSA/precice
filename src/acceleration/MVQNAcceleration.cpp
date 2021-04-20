@@ -659,6 +659,10 @@ void MVQNAcceleration::restartIMVJ()
     PRECICE_DEBUG("MVJ-RESTART, mode=Zero");
 
   } else if (_imvjRestartType == MVQNAcceleration::RS_SLIDE) {
+    
+    _WtilChunk.erase(_WtilChunk.begin());
+    _pseudoInverseChunk.erase(_pseudoInverseChunk.begin());
+    /*
 
     // re-compute Wtil -- compensate for dropping of Wtil_0 ond Z_0:
     //                    Wtil_q <-- Wtil_q +  Wtil^0 * (Z^0*V_q)
@@ -677,9 +681,11 @@ void MVQNAcceleration::restartIMVJ()
       // drop oldest pair Wtil_0 and Z_0
       PRECICE_ASSERT(not _WtilChunk.empty());
       PRECICE_ASSERT(not _pseudoInverseChunk.empty())
+      PRECICE_INFO("Wtil Chunk Size RS_SLIDE: " << _WtilChunk.size());
       _WtilChunk.erase(_WtilChunk.begin());
       _pseudoInverseChunk.erase(_pseudoInverseChunk.begin());
-    }
+      PRECICE_INFO("Wtil Chunk Size RS_SLIDE: " << _WtilChunk.size());
+    }   */
 
   } else if (_imvjRestartType == MVQNAcceleration::NO_RESTART) {
     PRECICE_ASSERT(false); // should not happen, in this case _imvjRestart=false
@@ -780,7 +786,13 @@ void MVQNAcceleration::specializedIterationsConverged(
         _WtilChunk.push_back(_Wtil);
         _pseudoInverseChunk.push_back(Z);
 
-        wtilChunkGroup = 1;
+        //if (_timestepsReused == 0){
+        wtilChunkGroup = 0;
+        //} else {
+        //  wtilChunkGroup = 1;
+        //}
+
+        
         //_Wtil.conservativeResize(0, 0);
         
         _resetLS = true;
