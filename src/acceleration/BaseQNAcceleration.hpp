@@ -191,6 +191,8 @@ protected:
   /// @brief Current iteration residuals of IQN data. Temporary.
   Eigen::VectorXd _residuals;
 
+  Eigen::VectorXd _deltaRes;
+
   /// @brief Current iteration residuals of secondary data.
   std::map<int, Eigen::VectorXd> _secondaryResiduals;
 

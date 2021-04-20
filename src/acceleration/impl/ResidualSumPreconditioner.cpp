@@ -71,6 +71,7 @@ void ResidualSumPreconditioner::_update_(bool                   timestepComplete
         }
         PRECICE_DEBUG("preconditioner scaling factor[" << k << "] = " << 1 / _residualSum[k]);
       }
+      PRECICE_INFO("Preconditioner weighting: " << 1 / _residualSum[k]);
       offset += _subVectorSizes[k];
     }
 

@@ -220,6 +220,7 @@ void BaseQNAcceleration::updateDifferenceMatrices(
 
       Eigen::VectorXd deltaR = _residuals;
       deltaR -= _oldResiduals;
+      _deltaRes = deltaR;
 
       Eigen::VectorXd deltaXTilde = _values;
       deltaXTilde -= _oldXTilde;
@@ -350,7 +351,8 @@ void BaseQNAcceleration::performAcceleration(
      * QR-decomposition of V.
      */
 
-    _preconditioner->update(false, _values, _residuals);
+    //_preconditioner->update(false, _values, _residuals);
+    _preconditioner->update(false, _values, _deltaRes);
     // apply scaling to V, V' := P * V (only needed to reset the QR-dec of V)
     _preconditioner->apply(_matrixV);
 

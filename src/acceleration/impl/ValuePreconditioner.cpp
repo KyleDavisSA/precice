@@ -40,6 +40,7 @@ void ValuePreconditioner::_update_(bool                   timestepComplete,
         _weights[i + offset]    = 1.0 / norms[k];
         _invWeights[i + offset] = norms[k];
       }
+      PRECICE_INFO("Preconditioner weighting: " << 1.0 / norms[k]);
       offset += _subVectorSizes[k];
     }
 
