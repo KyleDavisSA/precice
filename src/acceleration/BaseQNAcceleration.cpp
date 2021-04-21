@@ -555,7 +555,7 @@ void BaseQNAcceleration::iterationsConverged(
     _firstTimeStep = false;
 
   // update preconditioner depending on residuals or values (must be after specialized iterations converged --> IMVJ)
-  _preconditioner->update(true, _values, _residuals);
+  _preconditioner->update(true, _values, _deltaRes);
 
   if (_timestepsReused == 0) {
     if (_forceInitialRelaxation) {
