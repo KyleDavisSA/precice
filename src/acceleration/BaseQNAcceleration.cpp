@@ -352,8 +352,8 @@ void BaseQNAcceleration::performAcceleration(
      */
     PRECICE_INFO("Residuals before precon: " << utils::MasterSlave::l2norm(_residuals));
     PRECICE_INFO("deltaRes before precon: " << utils::MasterSlave::l2norm(_deltaRes));
-    //_preconditioner->update(false, _values, _residuals);
-    _preconditioner->update(false, _values, _deltaRes);
+    _preconditioner->update(false, _values, _residuals);
+    //_preconditioner->update(false, _values, _deltaRes);
     // apply scaling to V, V' := P * V (only needed to reset the QR-dec of V)
     _preconditioner->apply(_matrixV);
 
@@ -555,7 +555,8 @@ void BaseQNAcceleration::iterationsConverged(
     _firstTimeStep = false;
 
   // update preconditioner depending on residuals or values (must be after specialized iterations converged --> IMVJ)
-  _preconditioner->update(true, _values, _deltaRes);
+  //_preconditioner->update(true, _values, _deltaRes);
+  _preconditioner->update(true, _values, _residuals);
 
   if (_timestepsReused == 0) {
     if (_forceInitialRelaxation) {

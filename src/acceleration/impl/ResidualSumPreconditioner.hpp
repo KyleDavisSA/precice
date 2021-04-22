@@ -28,6 +28,7 @@ public:
   bool firstIter = true;
 
   int tStepPrecon = 1;
+  int iterNumber = 0;       // Number of iterations inside the preconditioner
   Eigen::VectorXd normWeights;
 
 private:
@@ -42,6 +43,7 @@ private:
 
   std::vector<double> _residualSum;
   std::vector<double> _setWeights;
+  std::vector<double> _averageInitialWeight;
 };
 
 } // namespace impl

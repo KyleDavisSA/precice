@@ -177,6 +177,12 @@ void MVQNAcceleration::updateDifferenceMatrices(
             // multiply: Wtil^q * Zv  dimensions: (n x m) * (m x 1), fully local
             wtil += _WtilChunk[i] * Zv;
           }
+          //Eigen::MatrixXd Z(_qrV.cols(), _qrV.rows());
+          //pseudoInverse(Z);
+          //int colsLSSystemBackThen = _Wtil.cols();
+          //_parMatrixOps->multiply(Z, v, Zv, colsLSSystemBackThen, getLSSystemRows(), 1);
+          //wtil += _Wtil * Zv;
+
 
           // store columns if restart mode = RS-LS
           if (_imvjRestartType == RS_LS) {

@@ -23,6 +23,7 @@ void ResidualSumPreconditioner::initialize(std::vector<size_t> &svs)
 
   _residualSum.resize(_subVectorSizes.size(), 0.0);
   _setWeights.resize(_subVectorSizes.size(), 1.0);
+  _averageInitialWeight.resize(_subVectorSizes.size(), 0.0);
 }
 
 void ResidualSumPreconditioner::_update_(bool                   timestepComplete,
@@ -56,7 +57,7 @@ void ResidualSumPreconditioner::_update_(bool                   timestepComplete
     }
 
     for (size_t k = 0; k < _subVectorSizes.size(); k++) {
-      _residualSum[k] += norms[k] / sum;
+      //_residualSum[k] += norms[k] / sum;
       PRECICE_INFO("Norm of res-sum: " << norms[k]);
       PRECICE_INFO("residualSum of res-sum: " << _residualSum[k]);
       if (math::equals(_residualSum[k], 0.0)) {
@@ -72,38 +73,61 @@ void ResidualSumPreconditioner::_update_(bool                   timestepComplete
     normWeights.resize(_subVectorSizes.size());
     // Chech if the new scaling weights are more than 1 order of magnitude from the previous weights
     for (size_t k = 0; k < _subVectorSizes.size(); k++) {
-      if(((1 / _residualSum[k])/_setWeights[k] > 10) || ((1 / _residualSum[k])/_setWeights[k] < 0.1)){
+      if(((1 / (_residualSum[k] + (norms[k] / sum)))/_setWeights[k] > 10) || ((1 / (_residualSum[k] + (norms[k] / sum)))/_setWeights[k] < 0.1)){
+      //if(((1 / _residualSum[k])/_setWeights[k] > 10) || ((1 / _residualSum[k])/_setWeights[k] < 0.1)){
         resetWeight = 1;
         PRECICE_INFO("Resetting weights due to difference to previous weights in subvector: " << k);
       }
     }
     for (size_t k = 0; k < _subVectorSizes.size(); k++) {
-      if (not math::equals(_residualSum[k], 0.0) ) {
+      //if (not math::equals(_residualSum[k], 0.0) ) {
         if (tStepPrecon < 2 || resetWeight == 1){
+          _residualSum[k] += norms[k] / sum;
           for (size_t i = 0; i < _subVectorSizes[k]; i++) {
             _weights[i + offset]    = 1 / _residualSum[k];
             _invWeights[i + offset] = _residualSum[k];
           }
           PRECICE_DEBUG("preconditioner scaling factor[" << k << "] = " << 1 / _residualSum[k]);
-        
+    
           _setWeights[k] = 1 / _residualSum[k]; 
+          if (tStepPrecon == 1){
+            _averageInitialWeight[k] += (1 / _residualSum[k]);
+          }
         
           _requireNewQR = true;
           _updatedWeights = true;
+          tStepPrecon++;
           } 
-        }
+        //}
       normWeights[k] = 1 / _residualSum[k];
       PRECICE_INFO("Actual Norm of weights: " << _setWeights[k]);
       PRECICE_INFO("Predicted Norm of weights: " << normWeights[k]);
       offset += _subVectorSizes[k];
     }
+    iterNumber++;
     resetWeight = 0;
 
   } else {
-    tStepPrecon++;
+    /*
+    int offset = 0;
+    if (tStepPrecon == 1){
+      for (size_t k = 0; k < _subVectorSizes.size(); k++) {
+        for (size_t i = 0; i < _subVectorSizes[k]; i++) {
+          _weights[i + offset] = _averageInitialWeight[k] / iterNumber;
+          _invWeights[i + offset] = 1 / _weights[i + offset];
+        }
+        _setWeights[k] = _averageInitialWeight[k] / iterNumber;
+        offset += _subVectorSizes[k];
+      }
+      _requireNewQR = true;
+      _updatedWeights = true;
+    }
+    */
     for (size_t k = 0; k < _subVectorSizes.size(); k++) {
       _residualSum[k] = 0.0;
     }
+    iterNumber = 0;
+    tStepPrecon++;
   }
 }
 
