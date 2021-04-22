@@ -178,6 +178,23 @@ void MVQNAcceleration::updateDifferenceMatrices(
             // multiply: Wtil^q * Zv  dimensions: (n x m) * (m x 1), fully local
             wtil += _WtilChunk[i] * Zv;
           }
+          /*
+          if (_Wtil.cols() > 1){
+            utils::removeColumnFromMatrix(_matrixV, 0);
+            _qrV.popFront();
+            int colsLSSystemBackThen = _Wtil.cols();
+            Eigen::MatrixXd Z(_qrV.cols(), _qrV.rows());
+            pseudoInverse(Z);
+            PRECICE_INFO("Pseudo Output: " << Z.cols() << " - " << Z.rows());
+            PRECICE_INFO("Pseudo Output: " << _Wtil.cols() << " - " << _Wtil.rows());
+            Eigen::VectorXd Zv = Eigen::VectorXd::Zero(colsLSSystemBackThen);
+            PRECICE_INFO("Pseudo Output: " << Zv.cols() << " - " << Zv.rows());
+            _parMatrixOps->multiply(Z, v, Zv, colsLSSystemBackThen, getLSSystemRows(), 1);
+            wtil += _Wtil * Zv;
+            utils::appendFront(_matrixV, v);
+            _qrV.pushFront(v);
+          }
+          */
 
           // store columns if restart mode = RS-LS
           if (_imvjRestartType == RS_LS) {
@@ -301,7 +318,24 @@ void MVQNAcceleration::buildWtil()
       // multiply: Wtil^q * ZV  dimensions: (n x m) * (m x m), fully local and embarrassingly parallel
       _Wtil += _WtilChunk[i] * ZV;
     }
+    /*Eigen::VectorXd v = _matrixV.col(0);
 
+    if (_Wtil.cols() > 1){
+            //utils::removeColumnFromMatrix(_matrixV, 0);
+            //_qrV.popFront();
+            int colsLSSystemBackThen = _Wtil.cols();
+            Eigen::MatrixXd Z(_qrV.cols(), _qrV.rows());
+            pseudoInverse(Z);
+            PRECICE_INFO("Pseudo Output: " << Z.cols() << " - " << Z.rows());
+            PRECICE_INFO("Pseudo Output: " << _Wtil.cols() << " - " << _Wtil.rows());
+            Eigen::VectorXd Zv = Eigen::MatrixXd::Zero(colsLSSystemBackThen, _qrV.cols());
+            PRECICE_INFO("Pseudo Output: " << Zv.cols() << " - " << Zv.rows());
+            _parMatrixOps->multiply(Z, _matrixV, Zv, colsLSSystemBackThen, getLSSystemRows(),  _qrV.cols());
+            _Wtil += _Wtil * Zv;
+            //utils::appendFront(_matrixV, v);
+            //_qrV.pushFront(v);
+          }
+*/
     // imvj without restart is used, i.e., recompute Wtil: Wtil = W - J_prev * V
   } else {
     // multiply J_prev * V = W_til of dimension: (n x n) * (n x m) = (n x m),
