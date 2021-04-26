@@ -160,7 +160,7 @@ public:
    *
    * @param[in] timestepComplete True if this FSI iteration also completed a timestep
    */
-  void update(bool timestepComplete, const Eigen::VectorXd &oldValues, const Eigen::VectorXd &res)
+  void update(bool timestepComplete, const Eigen::VectorXd &oldValues, const Eigen::VectorXd &res, const Eigen::VectorXd &deltaRes)
   {
     PRECICE_TRACE(_nbNonConstTimesteps, _frozen);
 
@@ -176,7 +176,7 @@ public:
     }
     PRECICE_INFO("Updating precon weights");
     // type specific update functionality
-    _update_(timestepComplete, oldValues, res);
+    _update_(timestepComplete, oldValues, res, deltaRes);
   }
 
   /// returns true if a QR decomposition from scratch is necessary
@@ -243,7 +243,7 @@ protected:
    *
    * @param[in] timestepComplete True if this FSI iteration also completed a timestep
    */
-  virtual void _update_(bool timestepComplete, const Eigen::VectorXd &oldValues, const Eigen::VectorXd &res) = 0;
+  virtual void _update_(bool timestepComplete, const Eigen::VectorXd &oldValues, const Eigen::VectorXd &res, const Eigen::VectorXd &deltaRes) = 0;
 
 private:
   logging::Logger _log{"acceleration::Preconditioner"};

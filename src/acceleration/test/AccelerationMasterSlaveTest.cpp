@@ -13,6 +13,8 @@
 #include "acceleration/impl/ConstantPreconditioner.hpp"
 #include "acceleration/impl/QRFactorization.hpp"
 #include "acceleration/impl/ResidualSumPreconditioner.hpp"
+#include "acceleration/impl/DeltaResidualSumPreconditioner.hpp"
+#include "acceleration/impl/DualDeltaResidualSumPreconditioner.hpp"
 #include "acceleration/impl/SharedPointer.hpp"
 #include "cplscheme/Constants.hpp"
 #include "cplscheme/CouplingData.hpp"

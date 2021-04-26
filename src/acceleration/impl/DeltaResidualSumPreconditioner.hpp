@@ -15,13 +15,13 @@ namespace impl {
  * @brief Preconditioner that uses the residuals of all iterations of the current timestep summed up to scale the quasi-Newton system.
  * This is somewhat similar to what is done in the Marks and Luke paper.
  */
-class ResidualSumPreconditioner : public Preconditioner {
+class DeltaResidualSumPreconditioner : public Preconditioner {
 public:
-  ResidualSumPreconditioner(int maxNonConstTimesteps);
+  DeltaResidualSumPreconditioner(int maxNonConstTimesteps);
   /**
    * @brief Destructor, empty.
    */
-  virtual ~ResidualSumPreconditioner() {}
+  virtual ~DeltaResidualSumPreconditioner() {}
 
   virtual void initialize(std::vector<size_t> &svs);
 
@@ -39,7 +39,7 @@ private:
    */
   virtual void _update_(bool timestepComplete, const Eigen::VectorXd &oldValues, const Eigen::VectorXd &res, const Eigen::VectorXd &deltaRes);
 
-  logging::Logger _log{"acceleration::ResidualSumPreconditioner"};
+  logging::Logger _log{"acceleration::DeltaResidualSumPreconditioner"};
 
   std::vector<double> _residualSum;
   std::vector<double> _setWeights;

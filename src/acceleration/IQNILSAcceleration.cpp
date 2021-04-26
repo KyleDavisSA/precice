@@ -151,7 +151,11 @@ void IQNILSAcceleration::computeQNUpdate(Acceleration::DataMap &cplData, Eigen::
 
   // need to scale the residual to compensate for the scaling in c = R^-1 * Q^T * P^-1 * residual'
   // it is also possible to apply the inverse scaling weights from the right to the vector c
+  PRECICE_INFO("Mat V before precon: " << _residuals[44]);
+  PRECICE_INFO("Res before precon: " << utils::MasterSlave::l2norm(_residuals));
   _preconditioner->apply(_residuals);
+  PRECICE_INFO("Mat V after precon: " << _residuals[44]);
+  PRECICE_INFO("Res after precon: " << utils::MasterSlave::l2norm(_residuals));
   _local_b = Q.transpose() * _residuals;
   _preconditioner->revert(_residuals);
   _local_b *= -1.0; // = -Qr

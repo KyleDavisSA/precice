@@ -33,6 +33,10 @@ target_sources(precice
     src/acceleration/impl/ResidualPreconditioner.hpp
     src/acceleration/impl/ResidualSumPreconditioner.cpp
     src/acceleration/impl/ResidualSumPreconditioner.hpp
+    src/acceleration/impl/DeltaResidualSumPreconditioner.cpp
+    src/acceleration/impl/DeltaResidualSumPreconditioner.hpp
+    src/acceleration/impl/DualDeltaResidualSumPreconditioner.cpp
+    src/acceleration/impl/DualDeltaResidualSumPreconditioner.hpp
     src/acceleration/impl/SVDFactorization.cpp
     src/acceleration/impl/SVDFactorization.hpp
     src/acceleration/impl/SharedPointer.hpp

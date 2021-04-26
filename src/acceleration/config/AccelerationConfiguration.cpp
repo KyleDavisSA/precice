@@ -15,6 +15,8 @@
 #include "acceleration/impl/QRFactorization.hpp"
 #include "acceleration/impl/ResidualPreconditioner.hpp"
 #include "acceleration/impl/ResidualSumPreconditioner.hpp"
+#include "acceleration/impl/DeltaResidualSumPreconditioner.hpp"
+#include "acceleration/impl/DualDeltaResidualSumPreconditioner.hpp"
 #include "acceleration/impl/ValuePreconditioner.hpp"
 #include "logging/LogMacros.hpp"
 #include "mesh/Data.hpp"
@@ -66,6 +68,8 @@ AccelerationConfiguration::AccelerationConfiguration(
       VALUE_VALUE_PRECONDITIONER("value"),
       VALUE_RESIDUAL_PRECONDITIONER("residual"),
       VALUE_RESIDUAL_SUM_PRECONDITIONER("residual-sum"),
+      VALUE_DELTA_RESIDUAL_SUM_PRECONDITIONER("delta-residual-sum"),
+      VALUE_DUAL_DELTA_RESIDUAL_SUM_PRECONDITIONER("dual-delta-residual-sum"),
       VALUE_LS_RESTART("RS-LS"),
       VALUE_ZERO_RESTART("RS-0"),
       VALUE_SVD_RESTART("RS-SVD"),
@@ -271,6 +275,10 @@ void AccelerationConfiguration::xmlEndTagCallback(
         _preconditioner = PtrPreconditioner(new ResidualPreconditioner(_config.precond_nbNonConstTSteps));
       } else if (_config.preconditionerType == VALUE_RESIDUAL_SUM_PRECONDITIONER) {
         _preconditioner = PtrPreconditioner(new ResidualSumPreconditioner(_config.precond_nbNonConstTSteps));
+      } else if (_config.preconditionerType == VALUE_DELTA_RESIDUAL_SUM_PRECONDITIONER) {
+        _preconditioner = PtrPreconditioner(new DeltaResidualSumPreconditioner(_config.precond_nbNonConstTSteps));
+      } else if (_config.preconditionerType == VALUE_DUAL_DELTA_RESIDUAL_SUM_PRECONDITIONER) {
+        _preconditioner = PtrPreconditioner(new DualDeltaResidualSumPreconditioner(_config.precond_nbNonConstTSteps));
       } else {
         // no preconditioner defined
         std::vector<double> factors;
@@ -446,7 +454,9 @@ void AccelerationConfiguration::addTypeSpecificSubtags(
                                       .setOptions({VALUE_CONSTANT_PRECONDITIONER,
                                                    VALUE_VALUE_PRECONDITIONER,
                                                    VALUE_RESIDUAL_PRECONDITIONER,
-                                                   VALUE_RESIDUAL_SUM_PRECONDITIONER})
+                                                   VALUE_RESIDUAL_SUM_PRECONDITIONER,
+                                                   VALUE_DELTA_RESIDUAL_SUM_PRECONDITIONER,
+                                                   VALUE_DUAL_DELTA_RESIDUAL_SUM_PRECONDITIONER})
                                       .setDocumentation("The type of the preconditioner.");
     tagPreconditioner.addAttribute(attrPreconditionerType);
     auto nonconstTSteps = makeXMLAttribute(ATTR_PRECOND_NONCONST_TIME_WINDOWS, -1)
@@ -518,7 +528,9 @@ void AccelerationConfiguration::addTypeSpecificSubtags(
                                       .setOptions({VALUE_CONSTANT_PRECONDITIONER,
                                                    VALUE_VALUE_PRECONDITIONER,
                                                    VALUE_RESIDUAL_PRECONDITIONER,
-                                                   VALUE_RESIDUAL_SUM_PRECONDITIONER})
+                                                   VALUE_RESIDUAL_SUM_PRECONDITIONER,
+                                                   VALUE_DELTA_RESIDUAL_SUM_PRECONDITIONER,
+                                                   VALUE_DUAL_DELTA_RESIDUAL_SUM_PRECONDITIONER})
                                       .setDocumentation("Type of the preconditioner.");
     tagPreconditioner.addAttribute(attrPreconditionerType);
     auto nonconstTSteps = makeXMLAttribute(ATTR_PRECOND_NONCONST_TIME_WINDOWS, -1)

@@ -27,7 +27,7 @@ private:
    *
    * @param[in] timestepComplete True if this FSI iteration also completed a timestep
    */
-  virtual void _update_(bool timestepComplete, const Eigen::VectorXd &oldValues, const Eigen::VectorXd &res);
+  virtual void _update_(bool timestepComplete, const Eigen::VectorXd &oldValues, const Eigen::VectorXd &res, const Eigen::VectorXd &deltaRes);
 
   bool _firstTimestep = true;
 };

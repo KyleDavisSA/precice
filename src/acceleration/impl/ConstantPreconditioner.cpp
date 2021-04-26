@@ -36,7 +36,8 @@ void ConstantPreconditioner::initialize(std::vector<size_t> &svs)
 
 void ConstantPreconditioner::_update_(bool                   timestepComplete,
                                       const Eigen::VectorXd &oldValues,
-                                      const Eigen::VectorXd &res)
+                                      const Eigen::VectorXd &res,
+                                      const Eigen::VectorXd &deltaRes)
 {
 
   //nothing to do here

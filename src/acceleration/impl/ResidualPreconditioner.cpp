@@ -15,7 +15,8 @@ ResidualPreconditioner::ResidualPreconditioner(int maxNonConstTimesteps)
 
 void ResidualPreconditioner::_update_(bool                   timestepComplete,
                                       const Eigen::VectorXd &oldValues,
-                                      const Eigen::VectorXd &res)
+                                      const Eigen::VectorXd &res,
+                                      const Eigen::VectorXd &deltaRes)
 {
   if (not timestepComplete) {
     std::vector<double> norms(_subVectorSizes.size(), 0.0);

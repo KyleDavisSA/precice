@@ -78,6 +78,8 @@ private:
   const std::string VALUE_VALUE_PRECONDITIONER;
   const std::string VALUE_RESIDUAL_PRECONDITIONER;
   const std::string VALUE_RESIDUAL_SUM_PRECONDITIONER;
+  const std::string VALUE_DELTA_RESIDUAL_SUM_PRECONDITIONER;
+  const std::string VALUE_DUAL_DELTA_RESIDUAL_SUM_PRECONDITIONER;
   const std::string VALUE_LS_RESTART;
   const std::string VALUE_ZERO_RESTART;
   const std::string VALUE_SVD_RESTART;

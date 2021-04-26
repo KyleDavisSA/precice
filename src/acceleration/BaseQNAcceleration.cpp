@@ -352,11 +352,14 @@ void BaseQNAcceleration::performAcceleration(
      */
     PRECICE_INFO("Residuals before precon: " << utils::MasterSlave::l2norm(_residuals));
     PRECICE_INFO("deltaRes before precon: " << utils::MasterSlave::l2norm(_deltaRes));
-    _preconditioner->update(false, _values, _residuals);
+      //PRECICE_INFO("First iteration in Time Window. Using Normal Residuals");
+      //_preconditioner->update(false, _values, _residuals, _residuals);
+      _preconditioner->update(false, _values, _residuals, _deltaRes);
+
     //_preconditioner->update(false, _values, _deltaRes);
     // apply scaling to V, V' := P * V (only needed to reset the QR-dec of V)
     _preconditioner->apply(_matrixV);
-
+    
     if (_preconditioner->requireNewQR()) {
       if (not(_filter == Acceleration::QR2FILTER)) { //for QR2 filter, there is no need to do this twice
         _qrV.reset(_matrixV, getLSSystemRows());
@@ -370,6 +373,11 @@ void BaseQNAcceleration::performAcceleration(
     }
 
     // apply the configured filter to the LS system
+    //if (tSteps == 0 && its == 3 && _matrixV.cols() == 3){
+    //  PRECICE_INFO("Removing 3rd column");
+    //  removeMatrixColumn(2);
+    //  _qrV.popBack();
+    //}
     utils::Event  applyingFilter("ApplyFilter");
     applyFilter();
     applyingFilter.stop();
@@ -556,7 +564,7 @@ void BaseQNAcceleration::iterationsConverged(
 
   // update preconditioner depending on residuals or values (must be after specialized iterations converged --> IMVJ)
   //_preconditioner->update(true, _values, _deltaRes);
-  _preconditioner->update(true, _values, _residuals);
+  _preconditioner->update(true, _values, _residuals, _deltaRes);
 
   if (_timestepsReused == 0) {
     if (_forceInitialRelaxation) {

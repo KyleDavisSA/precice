@@ -30,7 +30,8 @@ private:
     */
   virtual void _update_(bool                   timestepComplete,
                         const Eigen::VectorXd &oldValues,
-                        const Eigen::VectorXd &res);
+                        const Eigen::VectorXd &res,
+                        const Eigen::VectorXd &deltaRes);
 
   logging::Logger _log{"acceleration::ResidualPreconditioner"};
 };
