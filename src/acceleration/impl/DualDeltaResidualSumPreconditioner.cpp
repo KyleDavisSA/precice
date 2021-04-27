@@ -64,9 +64,6 @@ void DualDeltaResidualSumPreconditioner::_update_(bool                   timeste
     }
 
     for (size_t k = 0; k < _subVectorSizes.size(); k++) {
-      if (iterNumber == 2 && tStepPrecon == 1){
-        _residualSum[k] = 0;
-      }
       _residualSum[k] += (norms[k] / sum) /_subVectorSizes[k];
       PRECICE_INFO("Norm of res-sum: " << norms[k]);
       PRECICE_INFO("residualSum of res-sum: " << _residualSum[k] + (norms[k] / sum));
@@ -95,7 +92,7 @@ void DualDeltaResidualSumPreconditioner::_update_(bool                   timeste
     }
     for (size_t k = 0; k < _subVectorSizes.size(); k++) {
       //if (not math::equals(_residualSum[k], 0.0) ) {
-        if (tStepPrecon < 6 || resetWeight == 1){
+        if ((iterNumber < 4 && tStepPrecon < 3) || resetWeight == 1){
           //_residualSum[k] += norms[k] / sum;
           for (size_t i = 0; i < _subVectorSizes[k]; i++) {
             _weights[i + offset]    = 1 / _residualSum[k];
@@ -118,7 +115,7 @@ void DualDeltaResidualSumPreconditioner::_update_(bool                   timeste
       PRECICE_INFO("Predicted Norm of weights: " << normWeights[k]);
       offset += _subVectorSizes[k];
     }
-    tStepPrecon++;
+    //tStepPrecon++;
     iterNumber++;
     resetWeight = 0;
 
