@@ -693,10 +693,30 @@ void MVQNAcceleration::restartIMVJ()
     PRECICE_DEBUG("MVJ-RESTART, mode=Zero");
 
   } else if (_imvjRestartType == MVQNAcceleration::RS_SLIDE) {
+
+    std::vector<Eigen::MatrixXd> _WtilChunkFirst;
+    std::vector<Eigen::MatrixXd> _pseudoInverseChunkFirst;
+    for (int i = (int) _WtilChunk.size() - 1; i >= 0; i--) {
+      _WtilChunkFirst.push_back(_WtilChunk[i]);
+      _pseudoInverseChunkFirst.push_back(_pseudoInverseChunk[i]);
+    }
+    //PRECICE_INFO("Chunk number: " << _WtilChunk.begin());
+    //_WtilChunk.erase(_WtilChunk.begin());
+    //_pseudoInverseChunk.erase(_pseudoInverseChunk.begin());
+    _WtilChunk.clear();
+    _pseudoInverseChunk.clear();
     
-    _WtilChunk.erase(_WtilChunk.begin());
-    _pseudoInverseChunk.erase(_pseudoInverseChunk.begin());
+    for (int i = (int) _WtilChunk.size() - 1; i >= 0; i--) {
+      if (not i == 2){
+        _WtilChunk.push_back(_WtilChunkFirst[i]);
+        _pseudoInverseChunk.push_back(_pseudoInverseChunkFirst[i]);
+      }
+    }
+    _WtilChunkFirst.clear();
+    _pseudoInverseChunkFirst.clear();
+    
     /*
+    
 
     // re-compute Wtil -- compensate for dropping of Wtil_0 ond Z_0:
     //                    Wtil_q <-- Wtil_q +  Wtil^0 * (Z^0*V_q)
