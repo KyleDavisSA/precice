@@ -193,6 +193,8 @@ void BaseQNAcceleration::updateDifferenceMatrices(
   // Compute current residual: vertex-data - oldData
   _residuals = _values;
   _residuals -= _oldValues;
+  PRECICE_INFO("New values: " << utils::MasterSlave::l2norm(_values));
+  PRECICE_INFO("Old values: " << utils::MasterSlave::l2norm(_oldValues));
 
   if (math::equals(utils::MasterSlave::l2norm(_residuals), 0.0)) {
     PRECICE_WARN("The coupling residual equals almost zero. There is maybe something wrong in your adapter. "
@@ -220,9 +222,13 @@ void BaseQNAcceleration::updateDifferenceMatrices(
 
       Eigen::VectorXd deltaR = _residuals;
       deltaR -= _oldResiduals;
+      PRECICE_INFO("_oldResiduals: " << utils::MasterSlave::l2norm(_oldResiduals));
+      PRECICE_INFO("deltaR: " << utils::MasterSlave::l2norm(deltaR));
 
       Eigen::VectorXd deltaXTilde = _values;
       deltaXTilde -= _oldXTilde;
+      PRECICE_INFO("_oldXTilde: " << utils::MasterSlave::l2norm(_oldXTilde));
+      PRECICE_INFO("deltaXTilde: " << utils::MasterSlave::l2norm(deltaXTilde));
 
       PRECICE_CHECK(not math::equals(utils::MasterSlave::l2norm(deltaR), 0.0), "Attempting to add a zero vector to the quasi-Newton V matrix. This means that the residual "
                                                                                "in two consecutive iterations is identical. There is probably something wrong in your adapter. "
@@ -311,7 +317,7 @@ void BaseQNAcceleration::performAcceleration(
   updateDifferenceMatrices(cplData);
 
   if (_firstIteration && (_firstTimeStep || _forceInitialRelaxation)) {
-    PRECICE_DEBUG("   Performing underrelaxation");
+    PRECICE_INFO("   Performing underrelaxation");
     _oldXTilde    = _values;    // Store x tilde
     _oldResiduals = _residuals; // Store current residual
 
@@ -320,6 +326,7 @@ void BaseQNAcceleration::performAcceleration(
     _residuals *= _initialRelaxation;
     _residuals += _oldValues;
     _values = _residuals;
+    PRECICE_INFO("X Out: " << utils::MasterSlave::l2norm(_values));
 
     computeUnderrelaxationSecondaryData(cplData);
   } else {
@@ -405,6 +412,7 @@ void BaseQNAcceleration::performAcceleration(
      * apply quasiNewton update
      */
     _values = _oldValues + xUpdate + _residuals; // = x^k + delta_x + r^k - q^k
+    PRECICE_INFO("X Out: " << utils::MasterSlave::l2norm(_values));
 
     // pending deletion: delete old V, W matrices if timestepsReused = 0
     // those were only needed for the first iteration (instead of underrelax.)
