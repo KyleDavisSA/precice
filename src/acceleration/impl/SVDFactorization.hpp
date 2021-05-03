@@ -162,7 +162,9 @@ public:
 
     int waste = 0;
     for (int i = 0; i < (int) _sigma.size(); i++) {
-      if (_sigma(i) < (int) _sigma(0) * _truncationEps) {
+      PRECICE_INFO("SVD Sigma Value at cutoff: " << _sigma(i));
+      if (_sigma(i) < _sigma(0) * _truncationEps) {
+        PRECICE_INFO("SVD Sigma Value at cutoff: " << _sigma(i));
         _cols = i;
         waste = _sigma.size() - i;
         break;

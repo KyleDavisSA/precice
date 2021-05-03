@@ -87,6 +87,9 @@ private:
   /// @brief stores all Wtil matrices within the current chunk of the imvj restart mode, disabled if _imvjRestart = false.
   std::vector<Eigen::MatrixXd> _WtilChunk;
 
+  std::vector<Eigen::MatrixXd> _WtilChunkFirst;
+  std::vector<Eigen::MatrixXd> _pseudoInverseChunkFirst;
+
   /// @brief stores all pseudo inverses within the current chunk of the imvj restart mode, disabled if _imvjRestart = false.
   std::vector<Eigen::MatrixXd> _pseudoInverseChunk;
 
@@ -139,6 +142,8 @@ private:
 
   /// @brief indicates number of time-windows to group wtil into
   int wtilChunkGroup;
+
+  int _firstRestart = 0;
 
   // DEBUG
   //std::fstream _info2;

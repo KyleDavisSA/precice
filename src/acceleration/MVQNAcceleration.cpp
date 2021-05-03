@@ -58,7 +58,7 @@ MVQNAcceleration::MVQNAcceleration(
       _imvjRestart(false),
       _chunkSize(chunkSize),
       _RSLSreusedTimesteps(RSLSreusedTimesteps),
-      _usedColumnsPerTstep(50),
+      _usedColumnsPerTstep(5),
       _nbRestarts(0),
       //_info2(),
       _avgRank(0)
@@ -160,7 +160,7 @@ void MVQNAcceleration::updateDifferenceMatrices(
 
         // here, we check for _Wtil.cols() as the matrices V, W need to be updated before hand
         // and thus getLSSystemCols() does not yield the correct result.
-        bool columnLimitReached = _Wtil.cols() == _maxIterationsUsed;
+        bool columnLimitReached = _Wtil.cols() == _maxIterationsUsed*3;
         bool overdetermined     = _Wtil.cols() <= getLSSystemRows();
 
         Eigen::VectorXd wtil = Eigen::VectorXd::Zero(_matrixV.rows());
@@ -170,6 +170,9 @@ void MVQNAcceleration::updateDifferenceMatrices(
         // iterate over all stored Wtil and Z matrices in current chunk
         if (_imvjRestart) {
           for (int i = 0; i < (int) _WtilChunk.size(); i++) {
+            //PRECICE_INFO("Number of previous chunks: " << _WtilChunk.size());
+            //if (i == 1)
+            //  break;
             int colsLSSystemBackThen = _pseudoInverseChunk[i].rows();
             PRECICE_ASSERT(colsLSSystemBackThen == _WtilChunk[i].cols(), colsLSSystemBackThen, _WtilChunk[i].cols());
             Eigen::VectorXd Zv = Eigen::VectorXd::Zero(colsLSSystemBackThen);
@@ -196,15 +199,6 @@ void MVQNAcceleration::updateDifferenceMatrices(
           }
           */
 
-          // store columns if restart mode = RS-LS
-          if (_imvjRestartType == RS_LS) {
-            if (_matrixCols_RSLS.front() < _usedColumnsPerTstep) {
-              utils::appendFront(_matrixV_RSLS, v);
-              utils::appendFront(_matrixW_RSLS, w);
-              _matrixCols_RSLS.front()++;
-            }
-          }
-
           // imvj without restart is used, but efficient update, i.e. no Jacobian assembly in each iteration
           // add column: Wtil(:,0) = W(:,0) - J_prev * V(:,0)
         } else {
@@ -214,6 +208,22 @@ void MVQNAcceleration::updateDifferenceMatrices(
         }
         wtil *= -1;
         wtil += w;
+        PRECICE_INFO("L2 of w norm: " << utils::MasterSlave::l2norm(w));
+        PRECICE_INFO("L2 of wTil norm: " << utils::MasterSlave::l2norm(wtil));
+
+        // store columns if restart mode = RS-LS
+        if (_imvjRestartType == RS_SVD || _imvjRestartType == RS_LS ) {
+          if (_matrixCols_RSLS.front() < _usedColumnsPerTstep) {
+            utils::appendFront(_matrixV_RSLS, v);
+            PRECICE_INFO("_firstRestart: " << _firstRestart);
+            if (_firstRestart > 0){
+              utils::appendFront(_matrixW_RSLS, w);
+            } else {
+              utils::appendFront(_matrixW_RSLS, w);
+            }
+            _matrixCols_RSLS.front()++;
+          }
+        }
 
         if (not columnLimitReached && overdetermined) {
           utils::appendFront(_Wtil, wtil);
@@ -310,6 +320,9 @@ void MVQNAcceleration::buildWtil()
   // iterate over all stored Wtil and Z matrices in current chunk
   if (_imvjRestart) {
     for (int i = 0; i < (int) _WtilChunk.size(); i++) {
+      //PRECICE_INFO("Number of previous chunks: " << _WtilChunk.size());
+      //if (i == 1)
+      //  break;
       int colsLSSystemBackThen = _pseudoInverseChunk[i].rows();
       PRECICE_ASSERT(colsLSSystemBackThen == _WtilChunk[i].cols(), colsLSSystemBackThen, _WtilChunk[i].cols());
       Eigen::MatrixXd ZV = Eigen::MatrixXd::Zero(colsLSSystemBackThen, _qrV.cols());
@@ -396,7 +409,6 @@ void MVQNAcceleration::computeNewtonUpdateEfficient(
     Eigen::VectorXd &      xUpdate)
 {
   PRECICE_TRACE();
-
   /**      --- update inverse Jacobian efficient, ---
   *   If normal mode is used:
   *   Do not recompute W_til in every iteration and do not build
@@ -544,6 +556,42 @@ void MVQNAcceleration::restartIMVJ()
   //               ------------ RESTART SVD ------------
   if (_imvjRestartType == MVQNAcceleration::RS_SVD) {
 
+    int matVCounter = 0;
+    //_preconditioner->apply(_matrixV_RSLS);
+    //_preconditioner->apply(_matrixW_RSLS);
+
+    impl::QRFactorization qr(_filter);
+    qr.setGlobalRows(getLSSystemRows());
+
+    for (int i = 0; i < _matrixV_RSLS.cols(); i++) {
+          Eigen::VectorXd v = _matrixV_RSLS.col(_matrixV_RSLS.cols() - 1 - matVCounter);
+          Eigen::VectorXd w = _matrixW_RSLS.col(_matrixV_RSLS.cols() - 1 - matVCounter);
+          qr.pushFront(v); // same order as matrix V_RSLS
+          matVCounter++;
+    }
+
+    /**
+      *   computation of pseudo inverse matrix Z = (V^TV)^-1 * V^T as solution
+      *   to the equation R*z = Q^T(i) for all columns i,  via back substitution.
+      */
+      //auto            Q = qr.matrixQ();
+      //auto            R = qr.matrixR();
+      //Eigen::MatrixXd pseudoInverseMat(qr.cols(), qr.rows());
+      //Eigen::VectorXd yVec(pseudoInverseMat.rows());
+      //Eigen::MatrixXd Z(_qrV.cols(), _qrV.rows());
+
+      // backsubstitution
+      //for (int i = 0; i < Q.rows(); i++) {
+      //  Eigen::VectorXd Qrow = Q.row(i);
+      //  yVec                 = R.triangularView<Eigen::Upper>().solve<Eigen::OnTheLeft>(Qrow);
+      //  pseudoInverseMat.col(i) = yVec;
+      //}
+      //_preconditioner->apply(pseudoInverseMat, true);
+      //pseudoInverse(pseudoInverseMat);
+      //_preconditioner->revert(pseudoInverseMat, true);
+
+      
+
     // we need to compute the updated SVD of the scaled Jacobian matrix
     // |= APPLY PRECONDITIONING  J_prev = Wtil^q, Z^q  ===|
     for (int i = 0; i < (int) _WtilChunk.size(); i++) {
@@ -552,25 +600,41 @@ void MVQNAcceleration::restartIMVJ()
     }
     // |===================                            ===|
 
+    std::vector<Eigen::MatrixXd> _WtilChunkFirst;
+    std::vector<Eigen::MatrixXd> _pseudoInverseChunkFirst;
+    _WtilChunkFirst.push_back(_WtilChunk[0]);
+    _pseudoInverseChunkFirst.push_back(_pseudoInverseChunk[0]);
+
     int rankBefore = _svdJ.isSVDinitialized() ? _svdJ.rank() : 0;
 
     // if it is the first time step, there is no initial SVD, so take all Wtil, Z matrices
     // otherwise, the first element of each container holds the decomposition of the current
     // truncated SVD, i.e., Wtil^0 = \phi, Z^0 = S\psi^T, this should not be added to the SVD.
     int q = _svdJ.isSVDinitialized() ? 1 : 0;
+    //q = 1;
 
     // perform M-1 rank-1 updates of the truncated SVD-dec of the Jacobian
     for (; q < (int) _WtilChunk.size(); q++) {
       // update SVD, i.e., PSI * SIGMA * PHI^T <-- PSI * SIGMA * PHI^T + Wtil^q * Z^q
-      _svdJ.update(_WtilChunk[q], _pseudoInverseChunk[q].transpose());
-      //  used_storage += 2*_WtilChunk.size();
+        _svdJ.update(_WtilChunk[q], _pseudoInverseChunk[q].transpose());
     }
+    //_svdJ.update(_matrixW_RSLS, pseudoInverseMat.transpose());
+
+      //  used_storage += 2*_WtilChunk.size();
+    //}
     // int m = _WtilChunk[q].cols(), n = _WtilChunk[q].rows();
     //used_storage += 2*rankBefore*m + 4*m*n + 2*m*m + (rankBefore+m)*(rankBefore+m) + 2*n*(rankBefore+m);
 
     // drop all stored Wtil^q, Z^q matrices
     _WtilChunk.clear();
     _pseudoInverseChunk.clear();
+    PRECICE_INFO("Size of chunk zero: " << _WtilChunkFirst[0].cols());
+
+    //_WtilChunk.push_back(_WtilChunkFirst[0]);
+    //_pseudoInverseChunk.push_back(_pseudoInverseChunkFirst[0]);
+
+    _WtilChunkFirst.clear();
+    _pseudoInverseChunkFirst.clear();
 
     auto &psi   = _svdJ.matrixPsi();
     auto &sigma = _svdJ.singularValues();
@@ -588,13 +652,14 @@ void MVQNAcceleration::restartIMVJ()
     int waste     = _svdJ.getWaste();
     _avgRank += rankAfter;
 
-    // store factorized truncated SVD of J
     _WtilChunk.push_back(psi);
     _pseudoInverseChunk.push_back(Z);
 
     // |= REVERT PRECONDITIONING  J_prev = Wtil^0, Z^0  ==|
-    _preconditioner->revert(_WtilChunk.front());
-    _preconditioner->apply(_pseudoInverseChunk.front(), true);
+    for (q = 0; q < (int) _WtilChunk.size(); q++) {
+      _preconditioner->revert(_WtilChunk[q]);
+      _preconditioner->apply(_pseudoInverseChunk[q], true);
+    }
     // |===================                             ==|
 
     PRECICE_INFO("MVJ-RESTART, mode=SVD. Rank of truncated SVD of Jacobian " << rankAfter << ", new modes: " << rankAfter - rankBefore << ", truncated modes: " << waste << " avg rank: " << _avgRank / _nbRestarts);
@@ -603,11 +668,37 @@ void MVQNAcceleration::restartIMVJ()
       _infostringstream << " - MVJ-RESTART " << _nbRestarts << ", mode= SVD -\n  new modes: " << rankAfter - rankBefore << "\n  rank svd: " << rankAfter << "\n  avg rank: " << _avgRank / _nbRestarts << "\n  truncated modes: " << waste << "\n"
                         << '\n';
 
+
     //        ------------ RESTART LEAST SQUARES ------------
   } else if (_imvjRestartType == MVQNAcceleration::RS_LS) {
+
+    PRECICE_INFO("Columns in _matrixV_RSLS: " << _matrixV_RSLS.cols());
+    if (_matrixV_RSLS.cols() > _maxIterationsUsed || _firstRestart == 10000000){
+      
+      _firstRestart = 0;
+      
+      /*if (_firstRestart > 1 ){  
+        _WtilChunkFirst.push_back(_WtilChunk[0]);
+        _pseudoInverseChunkFirst.push_back(_pseudoInverseChunk[0]);
+        _preconditioner->apply(_WtilChunkFirst[0]);
+        _preconditioner->revert(_pseudoInverseChunkFirst[0], true);
+        PRECICE_INFO("Columns in Chunk at restart: " << _WtilChunkFirst[0].cols());
+      }
+      */
+    //_WtilChunkFirst.push_back(_WtilChunk[0]);
+    //_pseudoInverseChunkFirst.push_back(_pseudoInverseChunk[0]);
+    //_preconditioner->apply(_WtilChunkFirst[0]);
+    //_preconditioner->revert(_pseudoInverseChunkFirst[0], true);
+      
     // drop all stored Wtil^q, Z^q matrices
     _WtilChunk.clear();
     _pseudoInverseChunk.clear();
+
+    //_WtilChunk.push_back(_WtilChunkFirst[0]);
+    //_pseudoInverseChunk.push_back(_pseudoInverseChunkFirst[0]);
+
+    int matVCounter = 0;
+    int newChunkSize = 0;
 
     if (_matrixV_RSLS.cols() > 0) {
       // avoid that the syste mis getting too squared
@@ -621,14 +712,63 @@ void MVQNAcceleration::restartIMVJ()
       // matrices Wtil^0 and Z^0 as initial guess after the restart
       _preconditioner->apply(_matrixV_RSLS);
       _preconditioner->apply(_matrixW_RSLS);
+      
+
+      for (int j = 0; j < 1; j++){
+      //for (int j = 0; j < 1; j++){
+        PRECICE_INFO("j in RS-LS: " << j);
+        Eigen::MatrixXd newChunk;
+        newChunk.resize(0,0);
+        //if (i == 0) {
+        //newChunk.resize(_matrixV_RSLS.rows() , 20);
+        //} else {
+        //  newChunk.resize(_matrixV_RSLS.rows(), _matrixV_RSLS.cols() - 20);
+        //}
+        PRECICE_INFO("_matrixCols_RSLS: " << _matrixCols_RSLS);
+        PRECICE_INFO("_matrixCols_RSLS: " << _matrixCols_RSLS[_matrixCols_RSLS.size()-1 - j]);
+      
 
       impl::QRFactorization qr(_filter);
       qr.setGlobalRows(getLSSystemRows());
       // for QR2-filter, the QR-dec is computed in qr-applyFilter()
-      if (_filter != Acceleration::QR2FILTER) {
+      int firstChunkCols = _matrixCols_RSLS.size();
+      if (j == 0){
+        firstChunkCols = _matrixCols_RSLS.size();
+        //firstChunkCols = std::floor(_matrixCols_RSLS.size()/2); //_matrixCols_RSLS[_matrixCols_RSLS.size()-1];
+      } else {
+        firstChunkCols = _matrixCols_RSLS.size() - std::floor(_matrixCols_RSLS.size()/2);
+      }
+
+
+      if(j == 0){
+      //if (_filter != Acceleration::QR2FILTER) {
         for (int i = 0; i < (int) _matrixV_RSLS.cols(); i++) {
-          Eigen::VectorXd v = _matrixV_RSLS.col(i);
-          qr.pushBack(v); // same order as matrix V_RSLS
+        //for (int k = 0; k < firstChunkCols; k++){
+          //for (int i = 0; i < _matrixCols_RSLS[_matrixCols_RSLS.size()- 1 - firstChunkCols]; i++) {
+            Eigen::VectorXd v = _matrixV_RSLS.col(_matrixV_RSLS.cols() - 1 - matVCounter);
+            Eigen::VectorXd w = _matrixW_RSLS.col(_matrixV_RSLS.cols() - 1 - matVCounter);
+            qr.pushFront(v); // same order as matrix V_RSLS
+            utils::appendFront(newChunk, w);
+            matVCounter++;
+          }
+        //}
+      } else {
+        if (_filter != Acceleration::QR2FILTER) {
+          matVCounter -= _matrixCols_RSLS[1] + _matrixCols_RSLS[2] + _matrixCols_RSLS[3] +  _matrixCols_RSLS[4];
+          for (int i = 0; i < (_matrixV_RSLS.cols() - matVCounter ); i++) {
+            Eigen::VectorXd v = _matrixV_RSLS.col(_matrixV_RSLS.cols() - matVCounter - 1);
+            Eigen::VectorXd w = _matrixW_RSLS.col(_matrixW_RSLS.cols() - matVCounter - 1);
+            matVCounter++;
+            qr.pushFront(v); // same order as matrix V_RSLS
+            Eigen::VectorXd wtil = Eigen::VectorXd::Zero(_matrixV.rows());
+              int colsLSSystemBackThen = _WtilChunk[0].cols();
+              Eigen::VectorXd Zv = Eigen::VectorXd::Zero(colsLSSystemBackThen);
+              _parMatrixOps->multiply(_pseudoInverseChunk[0], v, Zv, colsLSSystemBackThen, getLSSystemRows(), 1);
+              wtil += _WtilChunk[0] * Zv;
+            wtil *= -1;
+            wtil += w;
+            utils::appendFront(newChunk, wtil);
+          }
         }
       }
 
@@ -638,10 +778,12 @@ void MVQNAcceleration::restartIMVJ()
         qr.applyFilter(_singularityLimit, delIndices, _matrixV_RSLS);
         // start with largest index (as V,W matrices are shrinked and shifted
         for (int i = delIndices.size() - 1; i >= 0; i--) {
+          PRECICE_INFO("Removing column with index: " << delIndices[i]);
           removeMatrixColumnRSLS(delIndices[i]);
         }
         PRECICE_ASSERT(_matrixV_RSLS.cols() == qr.cols(), _matrixV_RSLS.cols(), qr.cols());
       }
+      
 
       /**
       *   computation of pseudo inverse matrix Z = (V^TV)^-1 * V^T as solution
@@ -664,12 +806,26 @@ void MVQNAcceleration::restartIMVJ()
       //_preconditioner->apply(pseudoInverse, true, false);
 
       // store factorization of least-squares initial guess for Jacobian
+      //if (_firstRestart > 1 ){
+      // _WtilChunk.push_back(_WtilChunkFirst[0]);
+      //  _pseudoInverseChunk.push_back(_pseudoInverseChunkFirst[0]);
+      //}
+      //if (i == 0){
       _WtilChunk.push_back(_matrixW_RSLS);
+      //} else {
+      //_WtilChunk.push_back(newChunk);
+      //}
       _pseudoInverseChunk.push_back(pseudoInverse);
+      newChunkSize++;
+    }
 
       // |= REVERT PRECONDITIONING  J_prev = Wtil^0, Z^0  ==|
-      _preconditioner->revert(_WtilChunk.front());
-      _preconditioner->apply(_pseudoInverseChunk.front(), true);
+     // _preconditioner->revert(_WtilChunk.front());
+     // _preconditioner->apply(_pseudoInverseChunk.front(), true);
+      for (int i = 0; i < (int) _WtilChunk.size(); i++) {
+        _preconditioner->revert(_WtilChunk[i]);
+        _preconditioner->apply(_pseudoInverseChunk[i], true);
+      }
       _preconditioner->revert(_matrixW_RSLS);
       _preconditioner->revert(_matrixV_RSLS);
       // |===================                             ==|
@@ -680,9 +836,32 @@ void MVQNAcceleration::restartIMVJ()
       _infostringstream << " - MVJ-RESTART" << _nbRestarts << ", mode= LS -\n  used cols: " << _matrixV_RSLS.cols() << "\n  R_RS: " << _RSLSreusedTimesteps << "\n"
                         << '\n';
 
+    /*
+    int toRemove = _matrixCols_RSLS[_matrixCols_RSLS.size()-1];   // Total number of columns that must be removed from the back of _matrixV and _matrixW
+    //for (int i = 0; i < _timestepsReused; i++){
+    //  toRemove += _matrixCols[matColSize - 1 - i];
+    //}
+    //_nbDropCols += toRemove;
+    PRECICE_ASSERT(toRemove > 0, toRemove);
+    PRECICE_DEBUG("Removing " << toRemove << " cols from least-squares system with " << getLSSystemCols() << " cols");
+    PRECICE_ASSERT(_matrixV.cols() == _matrixW.cols(), _matrixV.cols(), _matrixW.cols());
+    //PRECICE_ASSERT(getLSSystemCols() > toRemove, getLSSystemCols(), toRemove);
+
+    // remove columns
+    for (int i = 0; i < toRemove; i++) {
+      utils::removeColumnFromMatrix(_matrixW_RSLS, _matrixW_RSLS.cols() - 1);
+      utils::removeColumnFromMatrix(_matrixV_RSLS, _matrixV_RSLS.cols() - 1);
+      // also remove the corresponding columns from the dynamic QR-descomposition of _matrixV
+    }
+      _matrixCols_RSLS.pop_back();
+    
+    */
     _matrixV_RSLS.resize(0, 0);
     _matrixW_RSLS.resize(0, 0);
     _matrixCols_RSLS.clear();
+
+    buildWtil();
+    }
 
     //            ------------ RESTART ZERO ------------
   } else if (_imvjRestartType == MVQNAcceleration::RS_ZERO) {
@@ -694,15 +873,18 @@ void MVQNAcceleration::restartIMVJ()
 
   } else if (_imvjRestartType == MVQNAcceleration::RS_SLIDE) {
 
+    PRECICE_INFO("RS-SLIDE");
+    //_WtilChunk.erase(_WtilChunk.begin());
+    //_pseudoInverseChunk.erase(_pseudoInverseChunk.begin());
+
+    /*
     std::vector<Eigen::MatrixXd> _WtilChunkFirst;
     std::vector<Eigen::MatrixXd> _pseudoInverseChunkFirst;
     for (int i = (int) _WtilChunk.size() - 1; i >= 0; i--) {
       _WtilChunkFirst.push_back(_WtilChunk[i]);
       _pseudoInverseChunkFirst.push_back(_pseudoInverseChunk[i]);
     }
-    //PRECICE_INFO("Chunk number: " << _WtilChunk.begin());
-    //_WtilChunk.erase(_WtilChunk.begin());
-    //_pseudoInverseChunk.erase(_pseudoInverseChunk.begin());
+    
     _WtilChunk.clear();
     _pseudoInverseChunk.clear();
     
@@ -714,10 +896,10 @@ void MVQNAcceleration::restartIMVJ()
     }
     _WtilChunkFirst.clear();
     _pseudoInverseChunkFirst.clear();
-    
-    /*
-    
+    */
 
+
+    
     // re-compute Wtil -- compensate for dropping of Wtil_0 ond Z_0:
     //                    Wtil_q <-- Wtil_q +  Wtil^0 * (Z^0*V_q)
     for (int i = (int) _WtilChunk.size() - 1; i >= 1; i--) {
@@ -739,7 +921,8 @@ void MVQNAcceleration::restartIMVJ()
       _WtilChunk.erase(_WtilChunk.begin());
       _pseudoInverseChunk.erase(_pseudoInverseChunk.begin());
       PRECICE_INFO("Wtil Chunk Size RS_SLIDE: " << _WtilChunk.size());
-    }   */
+    }  
+    PRECICE_INFO("Wtil Chunk Size RS_SLIDE: " << _WtilChunk[0].cols()); 
 
   } else if (_imvjRestartType == MVQNAcceleration::NO_RESTART) {
     PRECICE_ASSERT(false); // should not happen, in this case _imvjRestart=false
@@ -805,8 +988,10 @@ void MVQNAcceleration::specializedIterationsConverged(
     // |===================          ============|
 
     //              ------- RESTART/ JACOBIAN ASSEMBLY -------
+    _firstRestart++;
     if (_imvjRestart) {
-      if (wtilChunkGroup == _timestepsReused){
+      
+      if (wtilChunkGroup == _timestepsReused || _firstRestart == 0){
         PRECICE_INFO("Resetting chunk sizes to zero, and push back WtilChunk");
         // add the matrices Wtil and Z of the converged configuration to the storage containers
         Eigen::MatrixXd Z(_qrV.cols(), _qrV.rows());
@@ -840,8 +1025,11 @@ void MVQNAcceleration::specializedIterationsConverged(
         _WtilChunk.push_back(_Wtil);
         _pseudoInverseChunk.push_back(Z);
 
+        
+
         //if (_timestepsReused == 0){
         wtilChunkGroup = 0;
+        _firstRestart++;
         //} else {
         //  wtilChunkGroup = 1;
         //}
@@ -860,17 +1048,25 @@ void MVQNAcceleration::specializedIterationsConverged(
       for (int i = 0; i < _WtilChunk.size(); i++){
         PRECICE_INFO("Columns in Chunk: " << _WtilChunk[i].cols());
       }
+      if (_WtilChunk.size() == 1 && _firstRestart == 0 ){
+          PRECICE_INFO("Removing first chunk");
+          _WtilChunk.erase(_WtilChunk.begin());
+          _pseudoInverseChunk.erase(_pseudoInverseChunk.begin());
+          _firstRestart++;
+        } 
 
       /**
        *  Restart the IMVJ according to restart type
        */
-      if ((int) _WtilChunk.size() >= _chunkSize + 1) {
+      if ((int) _WtilChunk.size() >= _chunkSize) {
 
         // < RESTART >
         _nbRestarts++;
         utils::Event  restartUpdate("IMVJRestart");
         restartIMVJ();
         restartUpdate.stop();
+        //_firstRestart++;
+        PRECICE_INFO("Chunk size is: " << _WtilChunk.size()); 
       }
 
       // only in imvj normal mode with efficient update:

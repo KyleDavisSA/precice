@@ -223,6 +223,7 @@ void BaseQNAcceleration::updateDifferenceMatrices(
 
       Eigen::VectorXd deltaXTilde = _values;
       deltaXTilde -= _oldXTilde;
+      PRECICE_INFO("Length of Mat V: " << _matrixV.cols());
 
       PRECICE_CHECK(not math::equals(utils::MasterSlave::l2norm(deltaR), 0.0), "Attempting to add a zero vector to the quasi-Newton V matrix. This means that the residual "
                                                                                "in two consecutive iterations is identical. There is probably something wrong in your adapter. "
@@ -235,6 +236,7 @@ void BaseQNAcceleration::updateDifferenceMatrices(
 
         utils::appendFront(_matrixV, deltaR);
         utils::appendFront(_matrixW, deltaXTilde);
+        
 
         // insert column deltaR = _residuals - _oldResiduals at pos. 0 (front) into the
         // QR decomposition and update decomposition
@@ -367,7 +369,11 @@ void BaseQNAcceleration::performAcceleration(
     }
 
     // apply the configured filter to the LS system
-    
+    if (tSteps == 0 && its == 3 && _matrixV.cols() == 3){
+      PRECICE_INFO("Removing 3rd column");
+      removeMatrixColumn(2);
+      _qrV.popBack();
+    }
     utils::Event  applyingFilter("applyFilter");
     applyFilter();
     applyingFilter.stop();
@@ -574,7 +580,7 @@ void BaseQNAcceleration::iterationsConverged(
     int matColSize = _matrixCols.size();
     PRECICE_INFO("MatColSize for wtil update: " << matColSize);
     int toRemove = 0;   // Total number of columns that must be removed from the back of _matrixV and _matrixW
-    for (int i = 0; i < _timestepsReused; i++){
+    for (int i = 0; i < _timestepsReused - 1; i++){
       toRemove += _matrixCols[matColSize - 1 - i];
     }
     _nbDropCols += toRemove;
@@ -590,10 +596,11 @@ void BaseQNAcceleration::iterationsConverged(
       // also remove the corresponding columns from the dynamic QR-descomposition of _matrixV
       _qrV.popBack();
     }
-    for (int i = 0; i < _timestepsReused; i++){
+    for (int i = 0; i < _timestepsReused - 1; i++){
       _matrixCols.pop_back();
     }
   }
+  PRECICE_INFO("Mat V size end of time step: " << _matrixV.cols());
 
   _matrixCols.push_front(0);
   _firstIteration = true;
