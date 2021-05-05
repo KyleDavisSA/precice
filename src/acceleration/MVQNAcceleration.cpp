@@ -58,7 +58,7 @@ MVQNAcceleration::MVQNAcceleration(
       _imvjRestart(false),
       _chunkSize(chunkSize),
       _RSLSreusedTimesteps(RSLSreusedTimesteps),
-      _usedColumnsPerTstep(5),
+      _usedColumnsPerTstep(30),
       _nbRestarts(0),
       //_info2(),
       _avgRank(0)
@@ -733,17 +733,17 @@ void MVQNAcceleration::restartIMVJ()
       // for QR2-filter, the QR-dec is computed in qr-applyFilter()
       int firstChunkCols = _matrixCols_RSLS.size();
       if (j == 0){
-        firstChunkCols = _matrixCols_RSLS.size();
+        firstChunkCols = _matrixV_RSLS.cols();
         //firstChunkCols = std::floor(_matrixCols_RSLS.size()/2); //_matrixCols_RSLS[_matrixCols_RSLS.size()-1];
       } else {
-        firstChunkCols = _matrixCols_RSLS.size() - std::floor(_matrixCols_RSLS.size()/2);
+        firstChunkCols = _matrixCols_RSLS.size() - std::floor(_matrixCols_RSLS.size()/2);//_matrixCols_RSLS[1] + _matrixCols_RSLS[2]; //
       }
 
 
       if(j == 0){
       //if (_filter != Acceleration::QR2FILTER) {
-        for (int i = 0; i < (int) _matrixV_RSLS.cols(); i++) {
-        //for (int k = 0; k < firstChunkCols; k++){
+        //for (int i = 0; i < (int) _matrixV_RSLS.cols(); i++) {
+        for (int k = 0; k < firstChunkCols; k++){
           //for (int i = 0; i < _matrixCols_RSLS[_matrixCols_RSLS.size()- 1 - firstChunkCols]; i++) {
             Eigen::VectorXd v = _matrixV_RSLS.col(_matrixV_RSLS.cols() - 1 - matVCounter);
             Eigen::VectorXd w = _matrixW_RSLS.col(_matrixV_RSLS.cols() - 1 - matVCounter);
@@ -753,8 +753,8 @@ void MVQNAcceleration::restartIMVJ()
           }
         //}
       } else {
-        if (_filter != Acceleration::QR2FILTER) {
-          matVCounter -= _matrixCols_RSLS[1] + _matrixCols_RSLS[2] + _matrixCols_RSLS[3] +  _matrixCols_RSLS[4];
+        //if (_filter != Acceleration::QR2FILTER) {
+          //matVCounter -= _matrixCols_RSLS[1] + _matrixCols_RSLS[2] + _matrixCols_RSLS[3] +  _matrixCols_RSLS[4];
           for (int i = 0; i < (_matrixV_RSLS.cols() - matVCounter ); i++) {
             Eigen::VectorXd v = _matrixV_RSLS.col(_matrixV_RSLS.cols() - matVCounter - 1);
             Eigen::VectorXd w = _matrixW_RSLS.col(_matrixW_RSLS.cols() - matVCounter - 1);
@@ -769,7 +769,7 @@ void MVQNAcceleration::restartIMVJ()
             wtil += w;
             utils::appendFront(newChunk, wtil);
           }
-        }
+        //}
       }
 
       // apply filter

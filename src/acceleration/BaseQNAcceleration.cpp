@@ -223,7 +223,7 @@ void BaseQNAcceleration::updateDifferenceMatrices(
 
       Eigen::VectorXd deltaXTilde = _values;
       deltaXTilde -= _oldXTilde;
-      PRECICE_INFO("Length of Mat V: " << _matrixV.cols());
+      //PRECICE_INFO("Length of Mat V: " << _matrixV.cols());
 
       PRECICE_CHECK(not math::equals(utils::MasterSlave::l2norm(deltaR), 0.0), "Attempting to add a zero vector to the quasi-Newton V matrix. This means that the residual "
                                                                                "in two consecutive iterations is identical. There is probably something wrong in your adapter. "
