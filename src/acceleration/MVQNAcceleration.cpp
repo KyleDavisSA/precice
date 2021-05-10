@@ -212,7 +212,7 @@ void MVQNAcceleration::updateDifferenceMatrices(
         PRECICE_INFO("L2 of wTil norm: " << utils::MasterSlave::l2norm(wtil));
 
         // store columns if restart mode = RS-LS
-        if (_imvjRestartType == RS_SVD || _imvjRestartType == RS_LS ) {
+        if (_imvjRestartType == RS_LS ) {
           if (_matrixCols_RSLS.front() < _usedColumnsPerTstep) {
             utils::appendFront(_matrixV_RSLS, v);
             PRECICE_INFO("_firstRestart: " << _firstRestart);
@@ -563,12 +563,6 @@ void MVQNAcceleration::restartIMVJ()
     impl::QRFactorization qr(_filter);
     qr.setGlobalRows(getLSSystemRows());
 
-    for (int i = 0; i < _matrixV_RSLS.cols(); i++) {
-          Eigen::VectorXd v = _matrixV_RSLS.col(_matrixV_RSLS.cols() - 1 - matVCounter);
-          Eigen::VectorXd w = _matrixW_RSLS.col(_matrixV_RSLS.cols() - 1 - matVCounter);
-          qr.pushFront(v); // same order as matrix V_RSLS
-          matVCounter++;
-    }
 
     /**
       *   computation of pseudo inverse matrix Z = (V^TV)^-1 * V^T as solution
@@ -673,9 +667,9 @@ void MVQNAcceleration::restartIMVJ()
   } else if (_imvjRestartType == MVQNAcceleration::RS_LS) {
 
     PRECICE_INFO("Columns in _matrixV_RSLS: " << _matrixV_RSLS.cols());
-    if (_matrixV_RSLS.cols() > _maxIterationsUsed || _firstRestart == 10000000){
+    if (_matrixV_RSLS.cols() > _RSLSreusedTimesteps ){
       
-      _firstRestart = 0;
+      //_firstRestart = 0;
       
       /*if (_firstRestart > 1 ){  
         _WtilChunkFirst.push_back(_WtilChunk[0]);
@@ -860,12 +854,14 @@ void MVQNAcceleration::restartIMVJ()
     _matrixW_RSLS.resize(0, 0);
     _matrixCols_RSLS.clear();
 
-    buildWtil();
+    //buildWtil();
     }
 
     //            ------------ RESTART ZERO ------------
   } else if (_imvjRestartType == MVQNAcceleration::RS_ZERO) {
     // drop all stored Wtil^q, Z^q matrices
+    
+
     _WtilChunk.clear();
     _pseudoInverseChunk.clear();
 
