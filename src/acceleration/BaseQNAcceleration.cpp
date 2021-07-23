@@ -367,7 +367,9 @@ void BaseQNAcceleration::performAcceleration(
     }
 
     // apply the configured filter to the LS system
+    utils::Event  applyingFilter("applyFilter");
     applyFilter();
+    applyingFilter.stop();
 
     // revert scaling of V, in computeQNUpdate all data objects are unscaled.
     _preconditioner->revert(_matrixV);
@@ -454,7 +456,7 @@ void BaseQNAcceleration::applyFilter()
 
       removeMatrixColumn(delIndices[i]);
 
-      PRECICE_DEBUG(" Filter: removing column with index " << delIndices[i] << " in iteration " << its << " of time step: " << tSteps);
+      PRECICE_INFO(" Filter: removing column with index " << delIndices[i] << " in iteration " << its << " of time step: " << tSteps);
     }
     PRECICE_ASSERT(_matrixV.cols() == _qrV.cols(), _matrixV.cols(), _qrV.cols());
   }
@@ -568,7 +570,14 @@ void BaseQNAcceleration::iterationsConverged(
        */
     }
   } else if ((int) _matrixCols.size() > _timestepsReused) {
-    int toRemove = _matrixCols.back();
+    //int toRemove = _matrixCols.back();
+    //_nbDropCols += toRemove;
+    int matColSize = _matrixCols.size();
+    PRECICE_INFO("MatColSize for wtil update: " << matColSize);
+    int toRemove = 0;   // Total number of columns that must be removed from the back of _matrixV and _matrixW
+    for (int i = 0; i < 1; i++){
+      toRemove += _matrixCols[matColSize - 1 - i];
+    }
     _nbDropCols += toRemove;
     PRECICE_ASSERT(toRemove > 0, toRemove);
     PRECICE_DEBUG("Removing " << toRemove << " cols from least-squares system with " << getLSSystemCols() << " cols");
@@ -582,8 +591,11 @@ void BaseQNAcceleration::iterationsConverged(
       // also remove the corresponding columns from the dynamic QR-descomposition of _matrixV
       _qrV.popBack();
     }
-    _matrixCols.pop_back();
+    for (int i = 0; i < 1; i++){
+      _matrixCols.pop_back();
+    }
   }
+  PRECICE_INFO("Mat V size end of time step: " << _matrixV.cols());
 
   _matrixCols.push_front(0);
   _firstIteration = true;

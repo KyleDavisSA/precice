@@ -18,6 +18,7 @@
 #include "utils/EigenHelperFunctions.hpp"
 #include "utils/MasterSlave.hpp"
 #include "utils/assertion.hpp"
+#include "utils/Event.hpp"
 
 using precice::cplscheme::PtrCouplingData;
 
@@ -107,6 +108,7 @@ void MVQNAcceleration::initialize(
     _matrixW_RSLS = Eigen::MatrixXd::Zero(entries, 0);
   }
   _Wtil = Eigen::MatrixXd::Zero(entries, 0);
+  wtilChunkGroup = 0;
 
   if (utils::MasterSlave::isMaster() || (not utils::MasterSlave::isMaster() && not utils::MasterSlave::isSlave()))
     _infostringstream << " IMVJ restart mode: " << _imvjRestart << "\n chunk size: " << _chunkSize << "\n trunc eps: " << _svdJ.getThreshold() << "\n R_RS: " << _RSLSreusedTimesteps << "\n--------\n"
@@ -195,6 +197,8 @@ void MVQNAcceleration::updateDifferenceMatrices(
         }
         wtil *= -1;
         wtil += w;
+        PRECICE_INFO("L2 of w norm: " << utils::MasterSlave::l2norm(w));
+        PRECICE_INFO("L2 of wTil norm: " << utils::MasterSlave::l2norm(wtil));
 
         if (not columnLimitReached && overdetermined) {
           utils::appendFront(_Wtil, wtil);
@@ -448,8 +452,8 @@ void MVQNAcceleration::computeNewtonUpdateEfficient(
 
   // pending deletion: delete Wtil
   if (_firstIteration && _timestepsReused == 0 && not _forceInitialRelaxation) {
-    _Wtil.conservativeResize(0, 0);
-    _resetLS = true;
+    //_Wtil.conservativeResize(0, 0);
+    //_resetLS = true;
   }
 }
 
@@ -554,7 +558,7 @@ void MVQNAcceleration::restartIMVJ()
     _preconditioner->apply(_pseudoInverseChunk.front(), true);
     // |===================                             ==|
 
-    PRECICE_DEBUG("MVJ-RESTART, mode=SVD. Rank of truncated SVD of Jacobian " << rankAfter << ", new modes: " << rankAfter - rankBefore << ", truncated modes: " << waste << " avg rank: " << _avgRank / _nbRestarts);
+    PRECICE_INFO("MVJ-RESTART, mode=SVD. Rank of truncated SVD of Jacobian " << rankAfter << ", new modes: " << rankAfter - rankBefore << ", truncated modes: " << waste << " avg rank: " << _avgRank / _nbRestarts);
     //double percentage = 100.0*used_storage/(double)theoreticalJ_storage;
     if (utils::MasterSlave::isMaster() || (not utils::MasterSlave::isMaster() && not utils::MasterSlave::isSlave()))
       _infostringstream << " - MVJ-RESTART " << _nbRestarts << ", mode= SVD -\n  new modes: " << rankAfter - rankBefore << "\n  rank svd: " << rankAfter << "\n  avg rank: " << _avgRank / _nbRestarts << "\n  truncated modes: " << waste << "\n"
@@ -632,10 +636,14 @@ void MVQNAcceleration::restartIMVJ()
       // |===================                             ==|
     }
 
-    PRECICE_DEBUG("MVJ-RESTART, mode=LS. Restart with " << _matrixV_RSLS.cols() << " columns from " << _RSLSreusedTimesteps << " time steps.");
+    PRECICE_INFO("MVJ-RESTART, mode=LS. Restart with " << _matrixV_RSLS.cols() << " columns from " << _RSLSreusedTimesteps << " time steps.");
     if (utils::MasterSlave::isMaster() || (not utils::MasterSlave::isMaster() && not utils::MasterSlave::isSlave()))
       _infostringstream << " - MVJ-RESTART" << _nbRestarts << ", mode= LS -\n  used cols: " << _matrixV_RSLS.cols() << "\n  R_RS: " << _RSLSreusedTimesteps << "\n"
                         << '\n';
+
+    _matrixV_RSLS.resize(0, 0);
+    _matrixW_RSLS.resize(0, 0);
+    _matrixCols_RSLS.clear();
 
     //            ------------ RESTART ZERO ------------
   } else if (_imvjRestartType == MVQNAcceleration::RS_ZERO) {
@@ -699,8 +707,8 @@ void MVQNAcceleration::specializedIterationsConverged(
 
       // remove columns
       for (int i = 0; i < toRemove; i++) {
-        utils::removeColumnFromMatrix(_matrixV_RSLS, _matrixV_RSLS.cols() - 1);
-        utils::removeColumnFromMatrix(_matrixW_RSLS, _matrixW_RSLS.cols() - 1);
+        //utils::removeColumnFromMatrix(_matrixV_RSLS, _matrixV_RSLS.cols() - 1);
+        //utils::removeColumnFromMatrix(_matrixW_RSLS, _matrixW_RSLS.cols() - 1);
       }
       _matrixCols_RSLS.pop_back();
     }
@@ -732,28 +740,42 @@ void MVQNAcceleration::specializedIterationsConverged(
 
     //              ------- RESTART/ JACOBIAN ASSEMBLY -------
     if (_imvjRestart) {
+      if (wtilChunkGroup == _timestepsReused || _firstRestart == 0){
+        PRECICE_INFO("Resetting chunk sizes to zero, and push back WtilChunk");
+        // add the matrices Wtil and Z of the converged configuration to the storage containers
+        Eigen::MatrixXd Z(_qrV.cols(), _qrV.rows());
+        // compute pseudo inverse using QR factorization and back-substitution
+        // also compensates for the scaling of V, i.e.,
+        // reverts Z' = R^-1 * Q^T * P^-1 as Z := Z' * P
+        pseudoInverse(Z);
 
-      // add the matrices Wtil and Z of the converged configuration to the storage containers
-      Eigen::MatrixXd Z(_qrV.cols(), _qrV.rows());
-      // compute pseudo inverse using QR factorization and back-substitution
-      // also compensates for the scaling of V, i.e.,
-      // reverts Z' = R^-1 * Q^T * P^-1 as Z := Z' * P
-      pseudoInverse(Z);
+        // push back unscaled pseudo Inverse, Wtil is also unscaled.
+        // all objects in Wtil chunk and Z chunk are NOT PRECONDITIONED
+        _WtilChunk.push_back(_Wtil);
+        _pseudoInverseChunk.push_back(Z);
 
-      // push back unscaled pseudo Inverse, Wtil is also unscaled.
-      // all objects in Wtil chunk and Z chunk are NOT PRECONDITIONED
-      _WtilChunk.push_back(_Wtil);
-      _pseudoInverseChunk.push_back(Z);
+        wtilChunkGroup = 0;
+        _firstRestart++;
 
-      /**
-       *  Restart the IMVJ according to restart type
-       */
-      if ((int) _WtilChunk.size() >= _chunkSize + 1) {
-
-        // < RESTART >
-        _nbRestarts++;
-        restartIMVJ();
+      } else {
+        PRECICE_INFO("Increase wtilChunkGroup");
+        wtilChunkGroup += 1;
+        _resetLS = true;
       }
+
+        /**
+         *  Restart the IMVJ according to restart type
+         */
+        if ((int) _WtilChunk.size() >= _chunkSize + 1) {
+
+          // < RESTART >
+          _nbRestarts++;
+          utils::Event  restartUpdate("IMVJRestart");
+          restartIMVJ();
+          restartUpdate.stop();
+          //_firstRestart++;
+          PRECICE_INFO("Chunk size is: " << _WtilChunk.size()); 
+        }
 
       // only in imvj normal mode with efficient update:
     } else {
@@ -768,7 +790,7 @@ void MVQNAcceleration::specializedIterationsConverged(
      */
     if (_timestepsReused > 0 || (_timestepsReused == 0 && _forceInitialRelaxation)) {
       //_Wtil.conservativeResize(0, 0);
-      _resetLS = true;
+      //_resetLS = true;
     }
   }
 
