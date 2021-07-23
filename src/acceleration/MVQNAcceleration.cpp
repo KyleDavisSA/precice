@@ -740,7 +740,7 @@ void MVQNAcceleration::specializedIterationsConverged(
 
     //              ------- RESTART/ JACOBIAN ASSEMBLY -------
     if (_imvjRestart) {
-      if (wtilChunkGroup == _timestepsReused || _firstRestart == 0){
+      if (wtilChunkGroup == _timestepsReused){
         PRECICE_INFO("Resetting chunk sizes to zero, and push back WtilChunk");
         // add the matrices Wtil and Z of the converged configuration to the storage containers
         Eigen::MatrixXd Z(_qrV.cols(), _qrV.rows());
