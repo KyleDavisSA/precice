@@ -575,12 +575,13 @@ void BaseQNAcceleration::iterationsConverged(
     int matColSize = _matrixCols.size();
     PRECICE_INFO("MatColSize for wtil update: " << matColSize);
     int toRemove = 0;   // Total number of columns that must be removed from the back of _matrixV and _matrixW
+    // Using i < 1 only removes the end time step of columns
     for (int i = 0; i < 1; i++){
       toRemove += _matrixCols[matColSize - 1 - i];
     }
     _nbDropCols += toRemove;
     PRECICE_ASSERT(toRemove > 0, toRemove);
-    PRECICE_DEBUG("Removing " << toRemove << " cols from least-squares system with " << getLSSystemCols() << " cols");
+    PRECICE_INFO("Removing " << toRemove << " cols from least-squares system with " << getLSSystemCols() << " cols");
     PRECICE_ASSERT(_matrixV.cols() == _matrixW.cols(), _matrixV.cols(), _matrixW.cols());
     PRECICE_ASSERT(getLSSystemCols() > toRemove, getLSSystemCols(), toRemove);
 

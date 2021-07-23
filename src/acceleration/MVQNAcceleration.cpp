@@ -154,9 +154,12 @@ void MVQNAcceleration::updateDifferenceMatrices(
     } else {
       if (not _firstIteration) {
         // Update matrix _Wtil = (W - J_prev*V) with newest information
+        //buildWtil();
 
         Eigen::VectorXd v = _matrixV.col(0);
         Eigen::VectorXd w = _matrixW.col(0);
+        PRECICE_INFO("Update difference matrix in IMVJ");
+
 
         // here, we check for _Wtil.cols() as the matrices V, W need to be updated before hand
         // and thus getLSSystemCols() does not yield the correct result.
@@ -197,14 +200,16 @@ void MVQNAcceleration::updateDifferenceMatrices(
         }
         wtil *= -1;
         wtil += w;
-        PRECICE_INFO("L2 of w norm: " << utils::MasterSlave::l2norm(w));
-        PRECICE_INFO("L2 of wTil norm: " << utils::MasterSlave::l2norm(wtil));
-
+        
         if (not columnLimitReached && overdetermined) {
           utils::appendFront(_Wtil, wtil);
         } else {
           utils::shiftSetFirst(_Wtil, wtil);
         }
+
+        PRECICE_INFO("L2 of w norm: " << utils::MasterSlave::l2norm(w));
+        PRECICE_INFO("L2 of wTil norm: " << utils::MasterSlave::l2norm(wtil));
+
       }
     }
   }
@@ -288,6 +293,7 @@ void MVQNAcceleration::buildWtil()
   PRECICE_ASSERT(getLSSystemCols() == _qrV.cols(), getLSSystemCols(), _qrV.cols());
 
   _Wtil = Eigen::MatrixXd::Zero(_qrV.rows(), _qrV.cols());
+  //PRECICE_ASSERT(_Wtil.cols() == _matrixW.cols(), _Wtil.cols(), _matrixW.cols());
 
   // imvj restart mode: re-compute Wtil: Wtil = W - sum_q [ Wtil^q * (Z^q*V) ]
   //                                                      |--- J_prev ---|
@@ -756,6 +762,7 @@ void MVQNAcceleration::specializedIterationsConverged(
 
         wtilChunkGroup = 0;
         _firstRestart++;
+        _resetLS = true;
 
       } else {
         PRECICE_INFO("Increase wtilChunkGroup");
