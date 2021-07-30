@@ -576,7 +576,8 @@ void BaseQNAcceleration::iterationsConverged(
     PRECICE_INFO("MatColSize for wtil update: " << matColSize);
     int toRemove = 0;   // Total number of columns that must be removed from the back of _matrixV and _matrixW
     // Using i < 1 only removes the end time step of columns
-    for (int i = 0; i < 1; i++){
+    //for (int i = 0; i < 1; i++){
+    for (int i = 0; i < (matColSize - 1); i++){
       toRemove += _matrixCols[matColSize - 1 - i];
     }
     _nbDropCols += toRemove;
@@ -592,7 +593,8 @@ void BaseQNAcceleration::iterationsConverged(
       // also remove the corresponding columns from the dynamic QR-descomposition of _matrixV
       _qrV.popBack();
     }
-    for (int i = 0; i < 1; i++){
+    //for (int i = 0; i < 1; i++){#
+    for (int i = 0; i < (matColSize - 1); i++){
       _matrixCols.pop_back();
     }
   }
