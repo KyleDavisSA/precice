@@ -58,7 +58,7 @@ MVQNAcceleration::MVQNAcceleration(
       _imvjRestart(false),
       _chunkSize(chunkSize),
       _RSLSreusedTimesteps(RSLSreusedTimesteps),
-      _usedColumnsPerTstep(5),
+      _usedColumnsPerTstep(20),
       _nbRestarts(0),
       //_info2(),
       _avgRank(0)
