@@ -289,9 +289,6 @@ void MVQNAcceleration::buildWtil()
    */
   PRECICE_TRACE();
 
-  int colsLSSystemBackThen = _pseudoInverseChunk[i].rows();
-  if (colsLSSystemBackThen != 1){
-
     PRECICE_ASSERT(_matrixV.rows() == _qrV.rows(), _matrixV.rows(), _qrV.rows());
     PRECICE_ASSERT(getLSSystemCols() == _qrV.cols(), getLSSystemCols(), _qrV.cols());
 
@@ -303,13 +300,15 @@ void MVQNAcceleration::buildWtil()
     // iterate over all stored Wtil and Z matrices in current chunk
     if (_imvjRestart) {
       for (int i = 0; i < (int) _WtilChunk.size(); i++) {
-        colsLSSystemBackThen = _pseudoInverseChunk[i].rows();
-        PRECICE_ASSERT(colsLSSystemBackThen == _WtilChunk[i].cols(), colsLSSystemBackThen, _WtilChunk[i].cols());
-        Eigen::MatrixXd ZV = Eigen::MatrixXd::Zero(colsLSSystemBackThen, _qrV.cols());
-        // multiply: ZV := Z^q * V of size (m x m) with m=#cols, stored on each proc.
-        _parMatrixOps->multiply(_pseudoInverseChunk[i], _matrixV, ZV, colsLSSystemBackThen, getLSSystemRows(), _qrV.cols());
-        // multiply: Wtil^q * ZV  dimensions: (n x m) * (m x m), fully local and embarrassingly parallel
-        _Wtil += _WtilChunk[i] * ZV;
+        int colsLSSystemBackThen = _pseudoInverseChunk[i].rows();
+        if (colsLSSystemBackThen != 1){
+          PRECICE_ASSERT(colsLSSystemBackThen == _WtilChunk[i].cols(), colsLSSystemBackThen, _WtilChunk[i].cols());
+          Eigen::MatrixXd ZV = Eigen::MatrixXd::Zero(colsLSSystemBackThen, _qrV.cols());
+          // multiply: ZV := Z^q * V of size (m x m) with m=#cols, stored on each proc.
+          _parMatrixOps->multiply(_pseudoInverseChunk[i], _matrixV, ZV, colsLSSystemBackThen, getLSSystemRows(), _qrV.cols());
+          // multiply: Wtil^q * ZV  dimensions: (n x m) * (m x m), fully local and embarrassingly parallel
+          _Wtil += _WtilChunk[i] * ZV;
+        }
       }
 
       // imvj without restart is used, i.e., recompute Wtil: Wtil = W - J_prev * V
