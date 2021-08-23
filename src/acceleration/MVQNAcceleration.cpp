@@ -174,12 +174,14 @@ void MVQNAcceleration::updateDifferenceMatrices(
         if (_imvjRestart) {
           for (int i = 0; i < (int) _WtilChunk.size(); i++) {
             int colsLSSystemBackThen = _pseudoInverseChunk[i].rows();
-            PRECICE_ASSERT(colsLSSystemBackThen == _WtilChunk[i].cols(), colsLSSystemBackThen, _WtilChunk[i].cols());
-            Eigen::VectorXd Zv = Eigen::VectorXd::Zero(colsLSSystemBackThen);
-            // multiply: Zv := Z^q * V(:,0) of size (m x 1)
-            _parMatrixOps->multiply(_pseudoInverseChunk[i], v, Zv, colsLSSystemBackThen, getLSSystemRows(), 1);
-            // multiply: Wtil^q * Zv  dimensions: (n x m) * (m x 1), fully local
-            wtil += _WtilChunk[i] * Zv;
+            if (colsLSSystemBackThen != 1){
+              PRECICE_ASSERT(colsLSSystemBackThen == _WtilChunk[i].cols(), colsLSSystemBackThen, _WtilChunk[i].cols());
+              Eigen::VectorXd Zv = Eigen::VectorXd::Zero(colsLSSystemBackThen);
+              // multiply: Zv := Z^q * V(:,0) of size (m x 1)
+              _parMatrixOps->multiply(_pseudoInverseChunk[i], v, Zv, colsLSSystemBackThen, getLSSystemRows(), 1);
+              // multiply: Wtil^q * Zv  dimensions: (n x m) * (m x 1), fully local
+              wtil += _WtilChunk[i] * Zv;
+            }
           }
 
           // store columns if restart mode = RS-LS
@@ -443,12 +445,14 @@ void MVQNAcceleration::computeNewtonUpdateEfficient(
   if (_imvjRestart) {
     for (int i = 0; i < (int) _WtilChunk.size(); i++) {
       int colsLSSystemBackThen = _pseudoInverseChunk[i].rows();
-      PRECICE_ASSERT(colsLSSystemBackThen == _WtilChunk[i].cols(), colsLSSystemBackThen, _WtilChunk[i].cols());
-      r_til = Eigen::VectorXd::Zero(colsLSSystemBackThen);
-      // multiply: r_til := Z^q * (-res) of size (m x 1) with m=#cols of LS at that time, result stored on each proc.
-      _parMatrixOps->multiply(_pseudoInverseChunk[i], negativeResiduals, r_til, colsLSSystemBackThen, getLSSystemRows(), 1);
-      // multiply: Wtil^q * r_til  dimensions: (n x m) * (m x 1), fully local and embarrassingly parallel
-      xUpdate += _WtilChunk[i] * r_til;
+      if (colsLSSystemBackThen != 1){
+        PRECICE_ASSERT(colsLSSystemBackThen == _WtilChunk[i].cols(), colsLSSystemBackThen, _WtilChunk[i].cols());
+        r_til = Eigen::VectorXd::Zero(colsLSSystemBackThen);
+        // multiply: r_til := Z^q * (-res) of size (m x 1) with m=#cols of LS at that time, result stored on each proc.
+        _parMatrixOps->multiply(_pseudoInverseChunk[i], negativeResiduals, r_til, colsLSSystemBackThen, getLSSystemRows(), 1);
+        // multiply: Wtil^q * r_til  dimensions: (n x m) * (m x 1), fully local and embarrassingly parallel
+        xUpdate += _WtilChunk[i] * r_til;
+      }
     }
 
     // imvj without restart is used, i.e., compute directly J_prev * (-res)
