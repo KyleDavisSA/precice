@@ -289,38 +289,40 @@ void MVQNAcceleration::buildWtil()
    */
   PRECICE_TRACE();
 
-  PRECICE_ASSERT(_matrixV.rows() == _qrV.rows(), _matrixV.rows(), _qrV.rows());
-  PRECICE_ASSERT(getLSSystemCols() == _qrV.cols(), getLSSystemCols(), _qrV.cols());
+  int colsLSSystemBackThen = _pseudoInverseChunk[i].rows();
+  if (colsLSSystemBackThen != 1){
 
-  _Wtil = Eigen::MatrixXd::Zero(_qrV.rows(), _qrV.cols());
-  //PRECICE_ASSERT(_Wtil.cols() == _matrixW.cols(), _Wtil.cols(), _matrixW.cols());
+    PRECICE_ASSERT(_matrixV.rows() == _qrV.rows(), _matrixV.rows(), _qrV.rows());
+    PRECICE_ASSERT(getLSSystemCols() == _qrV.cols(), getLSSystemCols(), _qrV.cols());
 
-  // imvj restart mode: re-compute Wtil: Wtil = W - sum_q [ Wtil^q * (Z^q*V) ]
-  //                                                      |--- J_prev ---|
-  // iterate over all stored Wtil and Z matrices in current chunk
-  if (_imvjRestart) {
-    for (int i = 0; i < (int) _WtilChunk.size(); i++) {
-      int colsLSSystemBackThen = _pseudoInverseChunk[i].rows();
-      if (colsLSSystemBackThen != 1){
+    _Wtil = Eigen::MatrixXd::Zero(_qrV.rows(), _qrV.cols());
+    //PRECICE_ASSERT(_Wtil.cols() == _matrixW.cols(), _Wtil.cols(), _matrixW.cols());
+
+    // imvj restart mode: re-compute Wtil: Wtil = W - sum_q [ Wtil^q * (Z^q*V) ]
+    //                                                      |--- J_prev ---|
+    // iterate over all stored Wtil and Z matrices in current chunk
+    if (_imvjRestart) {
+      for (int i = 0; i < (int) _WtilChunk.size(); i++) {
+        colsLSSystemBackThen = _pseudoInverseChunk[i].rows();
         PRECICE_ASSERT(colsLSSystemBackThen == _WtilChunk[i].cols(), colsLSSystemBackThen, _WtilChunk[i].cols());
+        Eigen::MatrixXd ZV = Eigen::MatrixXd::Zero(colsLSSystemBackThen, _qrV.cols());
+        // multiply: ZV := Z^q * V of size (m x m) with m=#cols, stored on each proc.
+        _parMatrixOps->multiply(_pseudoInverseChunk[i], _matrixV, ZV, colsLSSystemBackThen, getLSSystemRows(), _qrV.cols());
+        // multiply: Wtil^q * ZV  dimensions: (n x m) * (m x m), fully local and embarrassingly parallel
+        _Wtil += _WtilChunk[i] * ZV;
       }
-      Eigen::MatrixXd ZV = Eigen::MatrixXd::Zero(colsLSSystemBackThen, _qrV.cols());
-      // multiply: ZV := Z^q * V of size (m x m) with m=#cols, stored on each proc.
-      _parMatrixOps->multiply(_pseudoInverseChunk[i], _matrixV, ZV, colsLSSystemBackThen, getLSSystemRows(), _qrV.cols());
-      // multiply: Wtil^q * ZV  dimensions: (n x m) * (m x m), fully local and embarrassingly parallel
-      _Wtil += _WtilChunk[i] * ZV;
+
+      // imvj without restart is used, i.e., recompute Wtil: Wtil = W - J_prev * V
+    } else {
+      // multiply J_prev * V = W_til of dimension: (n x n) * (n x m) = (n x m),
+      //                                    parallel:  (n_global x n_local) * (n_local x m) = (n_local x m)
+      _parMatrixOps->multiply(_oldInvJacobian, _matrixV, _Wtil, _dimOffsets, getLSSystemRows(), getLSSystemRows(), getLSSystemCols(), false);
     }
 
-    // imvj without restart is used, i.e., recompute Wtil: Wtil = W - J_prev * V
-  } else {
-    // multiply J_prev * V = W_til of dimension: (n x n) * (n x m) = (n x m),
-    //                                    parallel:  (n_global x n_local) * (n_local x m) = (n_local x m)
-    _parMatrixOps->multiply(_oldInvJacobian, _matrixV, _Wtil, _dimOffsets, getLSSystemRows(), getLSSystemRows(), getLSSystemCols(), false);
+    // W_til = (W-J_inv_n*V) = (W-V_tilde)
+    _Wtil *= -1.;
+    _Wtil = _Wtil + _matrixW;
   }
-
-  // W_til = (W-J_inv_n*V) = (W-V_tilde)
-  _Wtil *= -1.;
-  _Wtil = _Wtil + _matrixW;
 
   _resetLS = false;
   //  e.stop(true);
