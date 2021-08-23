@@ -301,7 +301,9 @@ void MVQNAcceleration::buildWtil()
   if (_imvjRestart) {
     for (int i = 0; i < (int) _WtilChunk.size(); i++) {
       int colsLSSystemBackThen = _pseudoInverseChunk[i].rows();
-      PRECICE_ASSERT(colsLSSystemBackThen == _WtilChunk[i].cols(), colsLSSystemBackThen, _WtilChunk[i].cols());
+      if (colsLSSystemBackThen != 1){
+        PRECICE_ASSERT(colsLSSystemBackThen == _WtilChunk[i].cols(), colsLSSystemBackThen, _WtilChunk[i].cols());
+      }
       Eigen::MatrixXd ZV = Eigen::MatrixXd::Zero(colsLSSystemBackThen, _qrV.cols());
       // multiply: ZV := Z^q * V of size (m x m) with m=#cols, stored on each proc.
       _parMatrixOps->multiply(_pseudoInverseChunk[i], _matrixV, ZV, colsLSSystemBackThen, getLSSystemRows(), _qrV.cols());
