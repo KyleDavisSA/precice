@@ -321,7 +321,7 @@ void MVQNAcceleration::buildWtil()
     // W_til = (W-J_inv_n*V) = (W-V_tilde)
     _Wtil *= -1.;
     _Wtil = _Wtil + _matrixW;
-  }
+  
 
   _resetLS = false;
   //  e.stop(true);
