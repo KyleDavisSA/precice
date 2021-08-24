@@ -25,6 +25,10 @@ public:
 
   virtual void initialize(std::vector<size_t> &svs);
 
+  bool firstIter = true;
+  int tStepPrecon = 1;
+  Eigen::VectorXd normWeights;
+
 private:
   /**
    * @brief Update the scaling after every FSI iteration.
@@ -36,6 +40,8 @@ private:
   logging::Logger _log{"acceleration::ResidualSumPreconditioner"};
 
   std::vector<double> _residualSum;
+  std::vector<double> _setWeights;
+
 };
 
 } // namespace impl
