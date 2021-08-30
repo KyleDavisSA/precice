@@ -157,8 +157,14 @@ public:
       */
     _cols = _sigma.size();
 
+    _truncationEps = 0.0001;
+
     int waste = 0;
     for (int i = 0; i < (int) _sigma.size(); i++) {
+      if (i > 100){
+        _truncationEps = 0.01;
+        PRECICE_INFO("Resetting SVD truncation value to 0.01. ");
+      }
       if (_sigma(i) < (int) _sigma(0) * _truncationEps) {
         _cols = i;
         waste = _sigma.size() - i;
@@ -170,7 +176,7 @@ public:
     _psi.conservativeResize(_rows, _cols);
     _phi.conservativeResize(_rows, _cols);
     _sigma.conservativeResize(_cols);
-    PRECICE_DEBUG("SVD factorization of Jacobian is truncated to " << _cols << " DOFs. Cut off " << waste << " DOFs");
+    PRECICE_INFO("SVD factorization of Jacobian is truncated to " << _cols << " DOFs. Cut off " << waste << " DOFs");
 
     _initialSVD = true;
   }
