@@ -49,6 +49,7 @@ public:
     // cannot do this already in the constructor as the size is unknown at that point
     _weights.resize(N, 1.0);
     _invWeights.resize(N, 1.0);
+    _previousWeights.resize(N, 1.0);
   }
 
   /**
@@ -196,6 +197,21 @@ public:
     _updatedWeights = false;
   }
 
+  void resetSVDWeights()
+  {
+    _resetSVDWeights = true;
+  }
+
+  bool getSVDReset()
+  {
+    return _resetSVDWeights;
+  }
+
+  void svdWeightsUpdated()
+  {
+    _resetSVDWeights = false;
+  }
+
   /// to tell the preconditioner that QR-decomposition has been recomputed
   void newQRfulfilled()
   {
@@ -219,6 +235,9 @@ protected:
   /// Inverse weights (for efficiency reasons)
   std::vector<double> _invWeights;
 
+  /// Previous weights used to back-scale the matrix V in SVD update
+  std::vector<double> _previousWeights;
+
   /// Sizes of each sub-vector, i.e. each coupling data
   std::vector<size_t> _subVectorSizes;
 
@@ -234,6 +253,8 @@ protected:
   bool _requireNewQR = false;
 
   bool _updatedWeights = false;
+
+  bool _resetSVDWeights = false;
 
   /// True if _nbNonConstTimesteps >= _maxNonConstTimesteps, i.e., preconditioner is not updated any more.
   bool _frozen = false;

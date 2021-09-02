@@ -357,6 +357,7 @@ void BaseQNAcceleration::performAcceleration(
     PRECICE_INFO("Reset the preconditioner with new weights: " << toReset);
     if (toReset){
       _qrV.performQR2();
+      
     }
     _preconditioner->updatedWeightsReset(); // COmment this out for no filter
 

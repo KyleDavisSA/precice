@@ -514,7 +514,15 @@ void MVQNAcceleration::restartIMVJ()
     // if it is the first time step, there is no initial SVD, so take all Wtil, Z matrices
     // otherwise, the first element of each container holds the decomposition of the current
     // truncated SVD, i.e., Wtil^0 = \phi, Z^0 = S\psi^T, this should not be added to the SVD.
-    int q = _svdJ.isSVDinitialized() ? 1 : 0;
+    int q = 0;
+    if (_preconditioner->getSVDReset()){
+      PRECICE_INFO("Resetting SVD due to weights. ");
+      _svdJ.reset();
+      _preconditioner->svdWeightsUpdated();
+      q = 1;
+    } else {
+      q = _svdJ.isSVDinitialized() ? 1 : 0;
+    }
 
     // perform M-1 rank-1 updates of the truncated SVD-dec of the Jacobian
     for (; q < (int) _WtilChunk.size(); q++) {
@@ -748,7 +756,7 @@ void MVQNAcceleration::specializedIterationsConverged(
       /**
        *  Restart the IMVJ according to restart type
        */
-      if ((int) _WtilChunk.size() >= _chunkSize + 1) {
+      if ((int) _WtilChunk.size() >= _chunkSize + 1 || (_svdJ.isSVDinitialized() && _imvjRestartType == MVQNAcceleration::RS_SVD && _preconditioner->getSVDReset() )) {
 
         // < RESTART >
         _nbRestarts++;

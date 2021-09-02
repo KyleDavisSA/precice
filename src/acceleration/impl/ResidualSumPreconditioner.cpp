@@ -82,6 +82,7 @@ void ResidualSumPreconditioner::_update_(bool                   timestepComplete
       if (not math::equals(_residualSum[k], 0.0)) {
         if (tStepPrecon < 2 || resetWeight == 1){
         for (size_t i = 0; i < _subVectorSizes[k]; i++) {
+          _previousWeights[i+offset] = _weights[i + offset];
           _weights[i + offset]    = 1 / _residualSum[k];
           _invWeights[i + offset] = _residualSum[k];
         }
@@ -90,6 +91,7 @@ void ResidualSumPreconditioner::_update_(bool                   timestepComplete
         _setWeights[k] = 1 / _residualSum[k]; 
         _requireNewQR = true;
         _updatedWeights = true;
+        _resetSVDWeights = true;
         }
       }
       normWeights[k] = 1 / _residualSum[k];
