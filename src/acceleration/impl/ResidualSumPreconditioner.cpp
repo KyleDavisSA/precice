@@ -80,18 +80,18 @@ void ResidualSumPreconditioner::_update_(bool                   timestepComplete
     }
     for (size_t k = 0; k < _subVectorSizes.size(); k++) {
       if (not math::equals(_residualSum[k], 0.0)) {
-        if (tStepPrecon < 2 || resetWeight == 1){
-        for (size_t i = 0; i < _subVectorSizes[k]; i++) {
-          _previousWeights[i+offset] = _weights[i + offset];
-          _weights[i + offset]    = 1 / _residualSum[k];
-          _invWeights[i + offset] = _residualSum[k];
-        }
-        PRECICE_DEBUG("preconditioner scaling factor[" << k << "] = " << 1 / _residualSum[k]);
+        if (tStepPrecon < 4){
+          for (size_t i = 0; i < _subVectorSizes[k]; i++) {
+            _previousWeights[i+offset] = _weights[i + offset];
+            _weights[i + offset]    = 1 / _residualSum[k];
+            _invWeights[i + offset] = _residualSum[k];
+          }
+          PRECICE_DEBUG("preconditioner scaling factor[" << k << "] = " << 1 / _residualSum[k]);
 
-        _setWeights[k] = 1 / _residualSum[k]; 
-        _requireNewQR = true;
-        _updatedWeights = true;
-        _resetSVDWeights = true;
+          _setWeights[k] = 1 / _residualSum[k]; 
+          _requireNewQR = true;
+          _updatedWeights = true;
+          _resetSVDWeights = true;
         }
       }
       normWeights[k] = 1 / _residualSum[k];
@@ -103,6 +103,33 @@ void ResidualSumPreconditioner::_update_(bool                   timestepComplete
 
   } else {
     tStepPrecon++;
+    int offset = 0;
+    int resetWeight = 0;
+    for (size_t k = 0; k < _subVectorSizes.size(); k++) {
+      if(((1 / _residualSum[k])/_setWeights[k] > 10) || ((1 / _residualSum[k])/_setWeights[k] < 0.1)){
+        resetWeight = 1;
+        PRECICE_INFO("Resetting weights due to difference to previous weights in subvector: " << k);
+      }
+    }
+    if(resetWeight == 1){
+      for (size_t k = 0; k < _subVectorSizes.size(); k++) {
+        if (not math::equals(_residualSum[k], 0.0)) {
+          for (size_t i = 0; i < _subVectorSizes[k]; i++) {
+            _weights[i + offset]    = 1 / _residualSum[k];
+            _invWeights[i + offset] = _residualSum[k];
+          }
+          PRECICE_DEBUG("preconditioner scaling factor[" << k << "] = " << 1 / _residualSum[k]);
+          _setWeights[k] = 1 / _residualSum[k]; 
+          _requireNewQR = true;
+          _updatedWeights = true;
+          _resetSVDWeights = true;
+        }
+        normWeights[k] = 1 / _residualSum[k];
+        PRECICE_INFO("Actual Norm of weights: " << _setWeights[k]);
+        PRECICE_INFO("Predicted Norm of weights: " << normWeights[k]);
+        offset += _subVectorSizes[k];
+      }
+    }
     for (size_t k = 0; k < _subVectorSizes.size(); k++) {
       _residualSum[k] = 0.0;
     }
