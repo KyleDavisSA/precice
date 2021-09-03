@@ -517,9 +517,10 @@ void MVQNAcceleration::restartIMVJ()
     int q = 0;
     if (_preconditioner->getSVDReset()){
       PRECICE_INFO("Resetting SVD due to weights. ");
+      q = _svdJ.isSVDinitialized() ? 1 : 0;
       _svdJ.reset();
       _preconditioner->svdWeightsUpdated();
-      q = 1;
+      //q = 1;
     } else {
       q = _svdJ.isSVDinitialized() ? 1 : 0;
     }
