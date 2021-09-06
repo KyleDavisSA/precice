@@ -89,6 +89,10 @@ private:
 
   /// @brief stores all pseudo inverses within the current chunk of the imvj restart mode, disabled if _imvjRestart = false.
   std::vector<Eigen::MatrixXd> _pseudoInverseChunk;
+  /// @brief stores all pseudo inverses within the current chunk of the imvj restart mode, disabled if _imvjRestart = false.
+  std::vector<Eigen::MatrixXd> _pseudoInverseChunkQ;
+  /// @brief stores all pseudo inverses within the current chunk of the imvj restart mode, disabled if _imvjRestart = false.
+  std::vector<Eigen::MatrixXd> _pseudoInverseChunkR;
 
   /// @brief stores columns from previous  #_RSLSreusedTimesteps time steps if RS-LS restart-mode is active
   Eigen::MatrixXd _matrixV_RSLS;
