@@ -181,6 +181,8 @@ private:
 
   void pseudoInverseStable(Eigen::MatrixXd &pseudoInverseQ, Eigen::MatrixXd &pseudoInverseR, Eigen::VectorXd &c, Eigen::VectorXd &v);
 
+  void pseudoInverseStable(Eigen::MatrixXd &pseudoInverseQ, Eigen::MatrixXd &pseudoInverseR, Eigen::MatrixXd &C, Eigen::MatrixXd &V);
+
   /** @brief: computes a explicit representation of the Jacobian, i.e., n x n matrix
     */
   void buildJacobian();

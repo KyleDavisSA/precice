@@ -168,18 +168,18 @@ void MVQNAcceleration::updateDifferenceMatrices(
         // iterate over all stored Wtil and Z matrices in current chunk
         if (_imvjRestart) {
           for (int i = 0; i < (int) _WtilChunk.size(); i++) {
-            int colsLSSystemBackThen = _pseudoInverseChunk[i].rows();
-            PRECICE_ASSERT(colsLSSystemBackThen == _WtilChunk[i].cols(), colsLSSystemBackThen, _WtilChunk[i].cols());
-            Eigen::VectorXd Zv = Eigen::VectorXd::Zero(colsLSSystemBackThen);
+            //int colsLSSystemBackThen = _pseudoInverseChunk[i].rows();
+            //PRECICE_ASSERT(colsLSSystemBackThen == _WtilChunk[i].cols(), colsLSSystemBackThen, _WtilChunk[i].cols());
+            //Eigen::VectorXd Zv = Eigen::VectorXd::Zero(colsLSSystemBackThen);
             // multiply: Zv := Z^q * V(:,0) of size (m x 1)
-            _parMatrixOps->multiply(_pseudoInverseChunk[i], v, Zv, colsLSSystemBackThen, getLSSystemRows(), 1);
+            //_parMatrixOps->multiply(_pseudoInverseChunk[i], v, Zv, colsLSSystemBackThen, getLSSystemRows(), 1);
             // multiply: Wtil^q * Zv  dimensions: (n x m) * (m x 1), fully 
-            /*Eigen::VectorXd c;
+            Eigen::VectorXd c;
             auto Q = _pseudoInverseChunkQ[i];
             auto R = _pseudoInverseChunkR[i];
             pseudoInverseStable(Q,R,c,v);
-            PRECICE_INFO("Computing update with Wtil");*/
-            wtil += _WtilChunk[i] * Zv;
+            PRECICE_INFO("Computing update with Wtil");
+            wtil += _WtilChunk[i] * c;
           }
 
           // store columns if restart mode = RS-LS
@@ -303,7 +303,7 @@ void MVQNAcceleration::pseudoInverseStable(
   _preconditioner->apply(v);
   _local_b = Q.transpose() * v;
   _preconditioner->revert(v);
-  _local_b *= -1.0; // = -Qr
+  //_local_b *= -1.0; // = -Qr
 
   //PRECICE_ASSERT(c.size() == 0, c.size());
   // reserve memory for c
@@ -341,6 +341,69 @@ void MVQNAcceleration::pseudoInverseStable(
 
 }
 
+void MVQNAcceleration::pseudoInverseStable(
+    Eigen::MatrixXd &pseudoInverseQ,
+    Eigen::MatrixXd &pseudoInverseR,
+    Eigen::MatrixXd &C,
+    Eigen::MatrixXd &V)
+{
+  PRECICE_TRACE();
+  
+  /**
+   *   computation of pseudo inverse matrix Z = (V^TV)^-1 * V^T as solution
+   *   to the equation R*z = Q^T(i) for all columns i,  via back substitution.
+   */
+  
+  auto Q = pseudoInverseQ;
+  auto R = pseudoInverseR;
+
+  Eigen::MatrixXd _local_b = Eigen::MatrixXd::Zero(Q.rows(),Q.cols());
+  Eigen::MatrixXd _global_b;
+  
+
+  // need to scale the residual to compensate for the scaling in c = R^-1 * Q^T * P^-1 * residual'
+  // it is also possible to apply the inverse scaling weights from the right to the vector c
+  _preconditioner->apply(V);
+  _local_b = Q.transpose() * V;
+  _preconditioner->revert(V);
+  //_local_b *= -1.0; // = -Qr
+
+  //PRECICE_ASSERT(c.size() == 0, c.size());
+  // reserve memory for c
+  //utils::append(c, (Eigen::VectorXd) Eigen::VectorXd::Zero(_local_b.size()));
+
+  // compute rhs Q^T*res in parallel
+  if (not utils::MasterSlave::isMaster() && not utils::MasterSlave::isSlave()) {
+    //PRECICE_ASSERT(Q.cols() == getLSSystemCols(), Q.cols(), getLSSystemCols());
+    // back substitution
+    C = R.triangularView<Eigen::Upper>().solve<Eigen::OnTheLeft>(_local_b);
+  } else {
+    PRECICE_ASSERT(utils::MasterSlave::_communication.get() != nullptr);
+    PRECICE_ASSERT(utils::MasterSlave::_communication->isConnected());
+    if (_hasNodesOnInterface) {
+      //PRECICE_ASSERT(Q.cols() == getLSSystemCols(), Q.cols(), getLSSystemCols());
+    }
+    //PRECICE_ASSERT(_local_b.size() == getLSSystemCols(), _local_b.size(), getLSSystemCols());
+
+    if (utils::MasterSlave::isMaster()) {
+      //PRECICE_ASSERT(_global_b.size() == 0, _global_b.size());
+    }
+    utils::append(_global_b, (Eigen::VectorXd) Eigen::VectorXd::Zero(_local_b.size()));
+
+    // do a reduce operation to sum up all the _local_b vectors
+    utils::MasterSlave::reduceSum(_local_b.data(), _global_b.data(), _local_b.size()); // size = getLSSystemCols() = _local_b.size()
+
+    // back substitution R*c = b only in master node
+    if (utils::MasterSlave::isMaster())
+      C = R.triangularView<Eigen::Upper>().solve<Eigen::OnTheLeft>(_global_b);
+
+    // broadcast coefficients c to all slaves
+    utils::MasterSlave::broadcast(C.data(), C.size());
+  }
+  PRECICE_INFO("Output C: " << C);
+
+}
+
 
 // ==================================================================================
 void MVQNAcceleration::buildWtil()
@@ -360,12 +423,18 @@ void MVQNAcceleration::buildWtil()
   // iterate over all stored Wtil and Z matrices in current chunk
   if (_imvjRestart) {
     for (int i = 0; i < (int) _WtilChunk.size(); i++) {
-      int colsLSSystemBackThen = _pseudoInverseChunk[i].rows();
-      PRECICE_ASSERT(colsLSSystemBackThen == _WtilChunk[i].cols(), colsLSSystemBackThen, _WtilChunk[i].cols());
-      Eigen::MatrixXd ZV = Eigen::MatrixXd::Zero(colsLSSystemBackThen, _qrV.cols());
+      //int colsLSSystemBackThen = _pseudoInverseChunk[i].rows();
+      //PRECICE_ASSERT(colsLSSystemBackThen == _WtilChunk[i].cols(), colsLSSystemBackThen, _WtilChunk[i].cols());
+      //Eigen::MatrixXd ZV = Eigen::MatrixXd::Zero(colsLSSystemBackThen, _qrV.cols());
       // multiply: ZV := Z^q * V of size (m x m) with m=#cols, stored on each proc.
-      _parMatrixOps->multiply(_pseudoInverseChunk[i], _matrixV, ZV, colsLSSystemBackThen, getLSSystemRows(), _qrV.cols());
+      //_parMatrixOps->multiply(_pseudoInverseChunk[i], _matrixV, ZV, colsLSSystemBackThen, getLSSystemRows(), _qrV.cols());
       // multiply: Wtil^q * ZV  dimensions: (n x m) * (m x m), fully local and embarrassingly parallel
+      Eigen::MatrixXd ZV;
+      auto Q = _pseudoInverseChunkQ[i];
+      auto R = _pseudoInverseChunkR[i];
+      pseudoInverseStable(Q,R,ZV,_matrixV);
+      PRECICE_INFO("Computing update with Wtil");
+
       _Wtil += _WtilChunk[i] * ZV;
     }
 
@@ -482,7 +551,7 @@ void MVQNAcceleration::computeNewtonUpdateEfficient(
   //Compute PseudoInverse like in IQN-ILS
   // Calculate QR decomposition of matrix V and solve Rc = -Qr
   Eigen::VectorXd c;
-  Eigen::VectorXd v = _residuals;
+  Eigen::VectorXd v = -_residuals;
 
   // for master-slave mode and procs with no vertices,
   // qrV.cols() = getLSSystemCols() and _qrV.rows() = 0
@@ -668,6 +737,8 @@ void MVQNAcceleration::restartIMVJ()
     // drop all stored Wtil^q, Z^q matrices
     _WtilChunk.clear();
     _pseudoInverseChunk.clear();
+    _pseudoInverseChunkQ.clear();
+    _pseudoInverseChunkR.clear();
 
     if (_matrixV_RSLS.cols() > 0) {
       // avoid that the syste mis getting too squared
@@ -727,7 +798,7 @@ void MVQNAcceleration::restartIMVJ()
       _WtilChunk.push_back(_matrixW_RSLS);
       _pseudoInverseChunk.push_back(pseudoInverse);
       _pseudoInverseChunkQ.push_back(qr.matrixQ());
-      _pseudoInverseChunkQ.push_back(qr.matrixR());
+      _pseudoInverseChunkR.push_back(qr.matrixR());
 
       // |= REVERT PRECONDITIONING  J_prev = Wtil^0, Z^0  ==|
       _preconditioner->revert(_WtilChunk.front());
@@ -847,13 +918,15 @@ void MVQNAcceleration::specializedIterationsConverged(
 
       // push back unscaled pseudo Inverse, Wtil is also unscaled.
       // all objects in Wtil chunk and Z chunk are NOT PRECONDITIONED
-      /*
-      _WtilChunk.push_back(_Wtil);
-      _pseudoInverseChunk.push_back(Z);
-      // Saves Matrices Q and R in seperate Eigen Matrices
-      _pseudoInverseChunkQ.push_back(_qrV.matrixQ());
-      _pseudoInverseChunkR.push_back(_qrV.matrixR());
-      */
+      //if (_Wtil.cols() > 30){
+        _WtilChunk.push_back(_Wtil);
+        _pseudoInverseChunk.push_back(Z);
+        // Saves Matrices Q and R in seperate Eigen Matrices
+        _pseudoInverseChunkQ.push_back(_qrV.matrixQ());
+        _pseudoInverseChunkR.push_back(_qrV.matrixR());
+      //}
+      
+      
       
 
       /**
