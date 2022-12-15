@@ -108,7 +108,7 @@ void QRFactorization::applyFilter(double singularityLimit, std::vector<int> &del
 {
   PRECICE_TRACE();
   delIndices.resize(0);
-  if (_filter == Acceleration::QR1FILTER || _filter == Acceleration::QR1FILTER_ABS) {
+  if (_filter == Acceleration::QR1FILTER || _filter == Acceleration::QR1FILTER_ABS || _filter == Acceleration::QR1FILTER_REL) {
     bool             linearDependence = true;
     std::vector<int> delFlag(_cols, 0);
     int              delCols = 0;
@@ -125,9 +125,14 @@ void QRFactorization::applyFilter(double singularityLimit, std::vector<int> &del
           if (index >= cols())
             break;
           PRECICE_ASSERT(index < _cols, index, _cols);
-          double factor = (_filter == Acceleration::QR1FILTER_ABS) ? 1.0 : _R.norm();
+          double factor = 0.0;
+          if (_filter == Acceleration::QR1FILTER_REL) {
+            Eigen::VectorXd v    = V.col(i);
+            double factor = utils::IntraComm::l2norm(v);
+          } else {
+            double factor = (_filter == Acceleration::QR1FILTER_ABS) ? 1.0 : _R.norm();
+          }
           if (std::fabs(_R(index, index)) < singularityLimit * factor) {
-
             linearDependence = true;
             deleteColumn(index);
             delFlag[i]++;

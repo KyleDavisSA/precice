@@ -73,6 +73,7 @@ private:
   const std::string VALUE_BROYDEN;
   const std::string VALUE_QR1FILTER;
   const std::string VALUE_QR1_ABSFILTER;
+  const std::string VALUE_QR1_RELFILTER;
   const std::string VALUE_QR2FILTER;
   const std::string VALUE_QR3FILTER;
   const std::string VALUE_CONSTANT_PRECONDITIONER;
