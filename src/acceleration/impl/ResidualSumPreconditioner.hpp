@@ -36,7 +36,7 @@ private:
   logging::Logger _log{"acceleration::ResidualSumPreconditioner"};
 
   std::vector<double> _residualSum;
-  std::vector<double> _previousResidualSum;
+  std::vector<double> _previousScalingWeights;
   int                 timeWindowPreconditioner = 0;
 };
 

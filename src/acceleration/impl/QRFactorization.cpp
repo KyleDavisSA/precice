@@ -108,7 +108,7 @@ void QRFactorization::applyFilter(double singularityLimit, std::vector<int> &del
 {
   PRECICE_TRACE();
   delIndices.resize(0);
-  if (_filter == Acceleration::QR1FILTER || _filter == Acceleration::QR1FILTER_ABS || _filter == Acceleration::QR1FILTER_REL) {
+  if (_filter == Acceleration::QR1FILTER || _filter == Acceleration::QR1FILTER_ABS ) {
     bool             linearDependence = true;
     std::vector<int> delFlag(_cols, 0);
     int              delCols = 0;
@@ -125,14 +125,9 @@ void QRFactorization::applyFilter(double singularityLimit, std::vector<int> &del
           if (index >= cols())
             break;
           PRECICE_ASSERT(index < _cols, index, _cols);
-          double factor = 0.0;
-          if (_filter == Acceleration::QR1FILTER_REL) {
-            Eigen::VectorXd v    = V.col(i);
-            double factor = utils::IntraComm::l2norm(v);
-          } else {
-            double factor = (_filter == Acceleration::QR1FILTER_ABS) ? 1.0 : _R.norm();
-          }
+          double factor = (_filter == Acceleration::QR1FILTER_ABS) ? 1.0 : _R.norm();
           if (std::fabs(_R(index, index)) < singularityLimit * factor) {
+            PRECICE_DEBUG("  Tagging a column for deletion in QR1 filter in column i = {}.", index);
             linearDependence = true;
             deleteColumn(index);
             delFlag[i]++;
@@ -146,6 +141,24 @@ void QRFactorization::applyFilter(double singularityLimit, std::vector<int> &del
         }
       }
     }
+  } else if (_filter == Acceleration::QR1FILTER_REL) {
+    PRECICE_DEBUG("  Using the QR1 Relative filter.");
+    delIndices.resize(0);
+    for (size_t i = 0; i < V.cols(); i++) {
+      Eigen::VectorXd v    = V.col(i);
+      double          rho0 = utils::IntraComm::l2norm(v);
+      if (std::fabs(_R(i, i)) < singularityLimit * rho0) {
+        delIndices.push_back(i);
+        PRECICE_DEBUG("  Tagging a column for deletion in QR1 filter in column i = {}.", i);
+      }
+    }
+    PRECICE_DEBUG("  Columns to delete = {}.", delIndices);
+    for (size_t i = 0; i < delIndices.size(); i++) {
+      deleteColumn(delIndices[i]);
+      for (size_t j = i+1; j < delIndices.size(); j++) {
+        delIndices[j]--;
+      }
+    }
   } else if (_filter == Acceleration::QR2FILTER) {
 
     resetFilter(singularityLimit, delIndices, V);
@@ -153,7 +166,7 @@ void QRFactorization::applyFilter(double singularityLimit, std::vector<int> &del
   } else if (_filter == Acceleration::QR3FILTER) {
     int index = cols() - 1;
     // Iterate from the last column to the 2nd column from the left
-    if (computeQR2 == true) {
+    if (computeQR2Filter == true) {
       PRECICE_DEBUG("  Pre-scaling weights were reset. Reverting to QR2 and rebuilding QR.");
       resetFilter(singularityLimit, delIndices, V);
     } else {
